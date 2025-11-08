@@ -8,15 +8,26 @@ manifest:
   remotes:
     - name: zephyrproject-rtos
       url-base: https://github.com/zephyrproject-rtos
+    - name: espressif
+      url-base: https://github.com/espressif
 
   projects:
     - name: zephyr
       remote: zephyrproject-rtos
-      revision: main
+      revision: v4.2.0
       import:
         # By using name-allowlist we can clone only the modules that are
         # strictly needed by the application.
         name-allowlist:
-          - cmsis_6    # required by the ARM port for Cortex-M
-          - hal_nordic # required by the custom_plank board (Nordic based)
-          - hal_stm32  # required by the nucleo_f302r8 board (STM32 based)
+          - hal_espressif
+          - hal_stm32
+          - cmsis_6
+          - cmsis-dsp
+          - cmsis-nn
+          - cmsis
+          - mbedtls
+
+    - name: esp-dsp
+      remote: espressif
+      path: example-application/lib/esp-dsp/modules
+

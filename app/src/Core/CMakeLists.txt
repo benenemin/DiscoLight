@@ -1,0 +1,1 @@
+FILE(GLOB core *.cpp)
