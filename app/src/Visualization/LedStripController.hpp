@@ -9,45 +9,48 @@
 
 namespace Visualization
 {
-    template<size_t LedCount>
-class LedStripController
-{
-public:
-    LedStripController(const device *ledStrip, Logger &logger)
-    : logger_(logger), led_strip_(ledStrip)
+    template <size_t LedCount>
+    class LedStripController
     {
+    public:
+        typedef array<led_rgb, LedCount> ledChain;
 
-    }
-
-    void Initialize() const
-    {
-        const auto ret = device_is_ready(led_strip_);
-        if (ret != 0)
+        LedStripController(const device* ledStrip, Logger& logger)
+            : logger_(logger), led_strip_(ledStrip)
         {
-            this->logger_.error("Led strip initialization failed: %d.", ret);
         }
-    }
 
-    void Clear()
-    {
-        for (auto led : leds_)
+        void Initialize() const
         {
-            SetLedColor(led, 0, 0, 0);
+            const auto ret = device_is_ready(led_strip_);
+            if (ret != 0)
+            {
+                this->logger_.error("Led strip initialization failed: %d.", ret);
+            }
         }
-        UpdateLedStrip();
-    }
 
-    void FlashColor(const uint8_t red, const uint8_t green, const uint8_t blue)
-    {
-        for (auto led : leds_)
+        ledChain* GetLeds()
         {
-            SetLedColor(led, red, green, blue);
+            return &leds_;
         }
-        UpdateLedStrip();
-    }
 
+        void Clear()
+        {
+            for (auto led : leds_)
+            {
+                SetLedColor(led, 0, 0, 0);
+            }
+            UpdateLedStrip();
+        }
 
-private:
+        void FlashColor(const uint8_t red, const uint8_t green, const uint8_t blue)
+        {
+            for (int i = 0; i < leds_.size(); ++i)
+            {
+                SetLedColor(leds_[i], red, green, blue);
+            }
+            UpdateLedStrip();
+        }
 
         void UpdateLedStrip()
         {
@@ -58,15 +61,16 @@ private:
             }
         }
 
-    static void SetLedColor(led_rgb &led, const uint8_t red, const uint8_t green, const uint8_t blue)
+    private:
+        static void SetLedColor(led_rgb& led, const uint8_t red, const uint8_t green, const uint8_t blue)
         {
             led.r = red;
             led.g = green;
             led.b = blue;
         }
 
-    Logger& logger_;
-    const device* led_strip_;
-    array<led_rgb, LedCount> leds_{};
-};
+        Logger& logger_;
+        const device* led_strip_;
+        ledChain leds_{};
+    };
 }

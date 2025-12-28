@@ -51,7 +51,7 @@ public:
 
         this->_timer.init([this] { ReadSample(); });
 
-        // timing_init();
+        timing_init();
 
         this->logger_.info("Adc initialized.");
         return res;
@@ -61,13 +61,12 @@ public:
     {
         this->_notifyFrameReady = notify;
         this->_timer.start(this->sampleInterval_us);
-        // timing_start();
+        timing_start();
         this->logger_.info("Adc started.");
     }
 
     void ReadFrame()
     {
-
         arm_mean_f32(this->_frame.data(), this->_frame.size(), &this->offset_);
 
         k_mutex_lock(&this->_mutex, K_FOREVER);
@@ -121,6 +120,6 @@ private:
 
     bool calibrated{false};
     float offset_ = 0;
-    //timing_t _timing{};
+    timing_t _timing{};
 };
 }

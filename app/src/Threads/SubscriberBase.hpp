@@ -28,32 +28,33 @@ namespace Threads
     {
       if (running) return;
       running = true;
-      threadWorker.Start([this]{Poll();}, prio);
+      threadWorker.Start([this](const zbus_observer *sub){Poll(sub);}, prio);
     }
 
   protected:
-    SubscriberBase(MessageBus &message_bus, ThreadWorker &threadWorker)
+    SubscriberBase(const zbus_channel *message_bus, ThreadWorker &threadWorker)
       : message_bus(message_bus), threadWorker(threadWorker)
     {
     }
 
     virtual void Notify(TEvent &event) = 0;
 
-    MessageBus &message_bus;
+    const zbus_channel *message_bus;
 
   private:
-    void Poll()
+    void Poll(const zbus_observer* subscriber)
     {
-      while (running) {
-        TEvent event{};
-        if (message_bus.Subscribe(event, K_NO_WAIT))
+      const zbus_channel *chan;
+      TEvent event;
+
+      while (!zbus_sub_wait(subscriber, &chan, K_FOREVER))
+      {
+        if (message_bus != chan)
         {
-          Notify(event);
+           continue;
         }
-        else
-        {
-          k_sleep(K_USEC(100)); // back off a bit when no data
-        }
+        zbus_chan_read(chan, &event, K_MSEC(250));
+        Notify(event);
       }
     }
 

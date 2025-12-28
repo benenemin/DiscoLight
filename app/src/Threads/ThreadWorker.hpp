@@ -4,17 +4,18 @@
 
 #pragma once
 #include <functional>
-#include <optional>
+
+#include "zephyr/zbus/zbus.h"
 
 namespace Utils
 {
     class ThreadWorker
     {
     public:
-        using Worker = function<void()>;
+        using Worker = std::function<void(const zbus_observer*)>;
 
-        explicit ThreadWorker(k_thread_stack_t &stack, size_t stack_size)
-            : stack(stack), stack_size(stack_size)
+        explicit ThreadWorker(const zbus_observer* observer, k_thread_stack_t &stack, size_t stack_size)
+            : stack(stack), stack_size(stack_size), observer_(observer)
         {
         }
 
@@ -34,6 +35,7 @@ namespace Utils
         Worker worker;
         k_thread thread_data{};
         k_tid_t thread_tid{};
+        const zbus_observer* observer_;
 
         static void thread_entry_point(void *arg1, void *, void *)
         {
@@ -42,7 +44,7 @@ namespace Utils
             {
                 return;
             }
-            self->worker();
+            self->worker(self->observer_);
         }
     };
 }

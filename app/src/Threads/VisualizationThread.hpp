@@ -3,55 +3,56 @@
 //
 
 #pragma once
-#include "Visualization/LedControl.hpp"
-#include "Visualization/LedStripController.hpp"
+
+#include "Animations/AnimationControl.hpp"
+#include "Core/EventTypes.hpp"
 
 namespace Threads
 {
-    template<size_t LedCount>
-class VisualizationThread final : SubscriberBase<BeatEvent>
-{
-public:
-    VisualizationThread(MessageBus &message_bus, ThreadWorker &threadWorker, Logger &logger, Visualization::LedStripController<LedCount> &ledStrip, Visualization::LedControl &led)
-    : SubscriberBase(message_bus, threadWorker), logger_(logger), led_strip_(ledStrip), led_(led)
-{
-
-    }
-
-    void Initialize(const int prio) override
+    template <size_t LedCount>
+    class VisualizationThread final
     {
-        SubscriberBase::Initialize(prio);
-    }
-
-    void Start() override
-    {
-        SubscriberBase::Start();
-        this->logger_.info("Visualization module started.");
-    }
-
-protected:
-    void Notify(BeatEvent& event) override
-    {
-        auto delta = event.ts.GetMs() - last_event_ms_;
-        last_event_ms_ = event.ts.GetMs();
-
-        if (delta < 200.0f)
+    public:
+        VisualizationThread(Core::EventTypes::AppSubscriber &subscriber, Logger& logger, Animations::AnimationControl<LedCount> &animationControl)
+            : logger_(logger), animation_control_(animationControl), subscriber_(subscriber)
         {
-            return;
         }
-        logger_.info("Visualization module here.");
-        led_.Set(true);
-        led_strip_.FlashColor(0, 0, 255);
-        k_sleep(K_MSEC(50));
-        led_.Set(false);
-        led_strip_.FlashColor(0, 0, 0);
-    }
 
-private:
-   Logger &logger_;
-    Visualization::LedStripController<LedCount>& led_strip_;
-    Visualization::LedControl& led_;
+        void Initialize(const int prio)
+        {
+            animation_control_.Initialize();
+        }
+
+        void Start()
+        {
+            animation_control_.Start(10'000);
+            subscriber_.Subscribe<Core::EventTypes::BeatEvent>([&](const Core::EventTypes::BeatEvent &event)
+            {
+                Notify();
+            });
+            subscriber_.Subscribe<Core::EventTypes::ButtonEvent>([&](const Core::EventTypes::ButtonEvent &event)
+            {
+                logger_.info("Button event: %d", event.state);
+                if (event.state == UtilsButton::ButtonState::ReleasedShort)
+                {
+                    animation_control_.IterateAnimation();
+                }
+            });
+            this->logger_.info("Visualization module started.");
+        }
+
+
+
+    private:
+        void Notify()
+        {
+            animation_control_.ProcessNextBeat();
+        }
+
+        Logger& logger_;
 
         float last_event_ms_ = 0;
-};
+        Animations::AnimationControl<LedCount> &animation_control_;
+        Core::EventTypes::AppSubscriber& subscriber_;
+    };
 }

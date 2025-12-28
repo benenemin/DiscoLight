@@ -4,35 +4,34 @@
 
 #pragma once
 
-#include "Threads/SubscriberBase.hpp"
 #include "Utils/Logger.hpp"
-#include "SignalProcessing/LpFilter.hpp"
-#include "SignalProcessing/FftProcessor.hpp"
-#include "SignalProcessing/BeatDetector.hpp"
+#include "SignalProcessing/BeatDetectorV2.hpp"
 #include "arm_math.h"
+#include "Core/EventTypes.hpp"
+
+namespace Core::EventTypes
+{
+    struct AudioFrame;
+}
 
 using namespace SignalProcessing;
 
 namespace Threads
 {
     template <size_t FrameSize>
-    class AudioProcessing final : SubscriberBase<AudioFrame>
+    class AudioProcessing final
     {
     public:
-        AudioProcessing(MessageBus &message_bus, ThreadWorker &threadWorker, LpFilter<FrameSize>& filter,
-            FftProcessor<FrameSize>& fftProcessor, BeatDetector<FrameSize, 2>& beatDetector, Logger &logger)
-        : SubscriberBase(message_bus, threadWorker), logger_(logger), filter_(filter),
-          fftProcessor_(fftProcessor), beatDetector_(beatDetector)
+        AudioProcessing(Core::EventTypes::AppPublisher &publisher, Core::EventTypes::AppSubscriber &subscriber,
+                        SignalProcessingBase<FrameSize> &signalProcessor, Logger &logger)
+        : logger_(logger), signalProcessor_(signalProcessor), publisher_(publisher), subscriber_(subscriber)
     {
         }
 
-        void Initialize(const int prio) override
+        void Initialize(const int prio)
         {
-            SubscriberBase::Initialize(prio);
             timing_init();
-            this->filter_.Initialize();
-            this->beatDetector_.Initialize(10000, {40, 130}, {300, 750});
-            auto ret = this->fftProcessor_.Initialize();
+            auto ret = signalProcessor_.Initialize();
             if (ret != ARM_MATH_SUCCESS)
             {
                 this->logger_.error("FFT module could not be initialized: %d.", ret);
@@ -42,43 +41,38 @@ namespace Threads
             this->logger_.info("Processing module initialized.");
         }
 
-        void Start() override
+        void Start()
         {
-            SubscriberBase::Start();
             timing_start();
+            subscriber_.Subscribe<Core::EventTypes::AudioFrame>([&](Core::EventTypes::AudioFrame &event)
+            {
+                Notify(event);
+            });
             this->logger_.info("Processing module started.");
         }
 
     protected:
-        void Notify(AudioFrame& event) override
+        void Notify(Core::EventTypes::AudioFrame& event)
         {
-            /* Filter */
-            this->filter_.Process(event.samples, this->filterOut_);
-            /* Apply FFT */
-            this->fftProcessor_.Process(this->filterOut_, this->fft_power);
-
-            /* Apply Beat detection */
-            array<bool, 2> flags;
-            auto beat = this->beatDetector_.Process(this->fft_power, flags);
+            auto beat = this->signalProcessor_.Process(event.samples);
             if (!beat)
             {
                 return;
             }
-
-            auto beatEvent = BeatEvent();
+            auto beatEvent = Core::EventTypes::BeatEvent();
             auto timestamp = Timestamp();
             timestamp.nSec = timing_cycles_to_ns(timing_counter_get());
             beatEvent.ts = timestamp;
-            beatEvent.bands = flags;
-            message_bus.Publish(beatEvent);
+            if (const auto err = publisher_.Publish(beatEvent))
+            {
+                this->logger_.error("Error publishing beat event: %d", err);
+            }
         }
 
         Logger& logger_;
-        LpFilter<FrameSize>& filter_;
-        FftProcessor<FrameSize>& fftProcessor_;
-        BeatDetector<FrameSize, 2>& beatDetector_;
 
-        array<float, FrameSize> filterOut_{};
-        array<float, FrameSize/2> fft_power{};
+        SignalProcessingBase<FrameSize> &signalProcessor_;
+        Core::EventTypes::AppPublisher& publisher_;
+        Core::EventTypes::AppSubscriber& subscriber_;
     };
 }

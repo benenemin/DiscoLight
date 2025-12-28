@@ -4,6 +4,7 @@
 
 #pragma once
 #include "ADC/AdcReader.hpp"
+#include "Core/EventTypes.hpp"
 
 namespace Threads
 {
@@ -12,8 +13,8 @@ namespace Threads
     {
     public:
 
-        explicit AudioSampling(Adc::AdcReader<FrameSize> &reader, Core::MessageBus &message_bus, Logger &logger)
-            : reader_(reader), message_bus_(message_bus), logger_(logger)
+        explicit AudioSampling(Adc::AdcReader<FrameSize> &reader, Core::EventTypes::AppPublisher &publisher, Logger &logger)
+            : reader_(reader), publisher_(publisher), logger_(logger)
         {
         }
 
@@ -22,24 +23,25 @@ namespace Threads
             this->reader_.Initialize(samplingInterval_us);
         }
 
-        void Start() const
+        void Start()
         {
-            this->reader_.Start([this](int sample_rate_hz, const array<float, FrameSize> &frame)
+            this->reader_.Start([this](const int sample_rate_hz, array<float, FrameSize> &frame)
             {
-                const Core::EventTypes::AudioFrame audioFrame =
-                    {
-                    .sample_rate_hz = sample_rate_hz,
-                    .samples = frame
-                    };
+                audioFrame.sample_rate_hz = sample_rate_hz;
+                audioFrame.samples = frame;
 
-                message_bus_.Publish(audioFrame);
+                if (const auto err = publisher_.Publish(audioFrame))
+                {
+                    this->logger_.error("failed to publish audio frame: %d", err);
+                }
             });
 
-            this->logger_.info("Audio sampling thread started.");
+            this->logger_.info("Audio sampling module started.");
         }
 
         Adc::AdcReader<FrameSize> &reader_;
-        Core::MessageBus& message_bus_;
+        Core::EventTypes::AppPublisher& publisher_;
+        inline static Core::EventTypes::AudioFrame audioFrame{};
         Logger& logger_;
     };
 }

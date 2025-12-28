@@ -1,13 +1,17 @@
 //
-// Created by bened on 01/11/2025.
+// Created by bened on 01/11/historySize25.
 //
 
 #pragma once
 
+#include "SignalProcessingBase.hpp"
+#include "FftProcessor.hpp"
+#include "LpFilter.hpp"
+
 namespace SignalProcessing
 {
-    template<size_t FrameSize, size_t BeatBands>
-class BeatDetector
+    template<size_t FrameSize, size_t BeatBands = 2>
+class BeatDetector final : public SignalProcessingBase<FrameSize>
 {
         public:
 
@@ -16,22 +20,23 @@ class BeatDetector
         using Flags        = array<bool,  BeatBands>;
         using Band         = pair<size_t,size_t>;
 
-        BeatDetector(Utils::Logger &logger)
-        : logger_(logger)
-        {
+        BeatDetector(FftProcessor<FrameSize>& fftProcessor, LpFilter<FrameSize>& filter, Logger &logger, int sampleRate, Band band1 = {40, 130}, Band band2 = {300, 750})
+        : logger_(logger), sample_rate_(sampleRate), band1_(std::move(band1)), band2_(std::move(band2)),
+          fftProcessor_(fftProcessor), filter_(filter)
+    {
 
         }
 
-        void Initialize(int sampleRate, Band band1, Band band2)
+        int Initialize() override
         {
-            cfg_.band_freqs  = { band1, band2 };
+            cfg_.band_freqs  = { band1_, band2_ };
             cfg_.alpha    = { -15.0f, -15.0f };    // variance sensitivity
             cfg_.beta     = {   1.55f,  1.55f };   // base multiplier
             cfg_.eps_frac = {   0.05f,  0.005f };  // suppress DC/bleed: 5% (bass), 0.5% (low-mid)
             cfg_.denom_eps = 1e-12f;               // safe tiny epsilon
 
             const uint32_t bandSize = (FrameSize/2 != 0u)
-                                  ? (sampleRate / FrameSize/2)
+                                  ? (sample_rate_ / FrameSize/2)
                                   : 0u;
             for (size_t b = 0; b < BeatBands; ++b) {
                 size_t lo = (bandSize ? (cfg_.band_freqs[b].first  / bandSize) : 0u);
@@ -41,17 +46,25 @@ class BeatDetector
                 if (hi <= lo) hi = min<size_t>(lo + 1, FrameSize/2);
                 bands_bins_[b] = {lo, hi};    // [lo, hi)
             }
+
+            this->filter_.Initialize();
+            return this->fftProcessor_.Initialize();
         }
 
-        bool Process(const Spectrum& spectrum, Flags& beats_out)
+        bool Process(array<float, FrameSize> &samples) override
         {
+            /* Filter */
+            this->filter_.Process(samples, this->filterOut_);
+            /* Apply FFT */
+            this->fftProcessor_.Process(this->filterOut_, this->fft_power);
+
             // 1) Compute band energies (average of bins in range)
             for (size_t b = 0; b < BeatBands; ++b)
             {
                 const auto [lo, hi] = bands_bins_[b];
                 float acc = 0.0f;
                 const size_t width = hi - lo;
-                for (size_t i = lo; i < hi; ++i) acc += isnan(spectrum[i]) ? 0.0f : spectrum[i];
+                for (size_t i = lo; i < hi; ++i) acc += isnan(this->fft_power[i]) ? 0.0f : this->fft_power[i];
                 band_energy_[b] = (width ? (acc / static_cast<float>(width)) : 0.0f);
             }
 
@@ -65,17 +78,19 @@ class BeatDetector
             bool any = false;
 
             for (size_t b = 0; b < BeatBands; ++b) {
-                mean_[b] = sum_[b] / 20.0f;
+                mean_[b] = sum_[b] / historySize;
                 const float e2 = sumsq_[b] / 40.0f;
                 float v = e2 - mean_[b]*mean_[b];     // population variance
-                var_[b] = (v > 0.0f) ? v : 0.0f;
+                var_[b] = max(v, 0.0f);
 
                 const float c = -0.0025714f*var_[b] + 1.5142857f;
                 const bool beat = band_energy_[b] > c * mean_[b];
-                beats_out[b] = beat;
-                any |= beat;
+                if (b == 0)
+                {
+                    any = beat;
+                    logger_.info("value: %f > %f", band_energy_[0], var_[b]);
+                }
             }
-
             push_current_into_history_();
             return any;
         }
@@ -93,7 +108,7 @@ class BeatDetector
         };
 
         void push_current_into_history_() noexcept {
-            if (count_ == 20) {
+            if (count_ == historySize) {
                 // Remove oldest from sums
                 const auto& old = history_[head_];
                 for (std::size_t b = 0; b < BeatBands; ++b) {
@@ -111,18 +126,25 @@ class BeatDetector
                 sum_[b]   += e;
                 sumsq_[b] += e*e;
             }
-            head_ = (head_ + 1) % 20;
+            head_ = (head_ + 1) % historySize;
         }
-
         BandEnergies band_energy_{};
         BandEnergies sum_{}, sumsq_{};
         BandEnergies mean_{}, var_{};
 
         Config cfg_{};
         array<Band, BeatBands>bands_bins_{};
-        std::array<BandEnergies, 20> history_{}; // ring buffer
+        const size_t historySize = 10;
+        std::array<BandEnergies, 10> history_{}; // ring buffer
+        array<float, FrameSize> filterOut_{};
+        array<float, FrameSize/2> fft_power{};
         std::size_t head_  = 0;
         size_t count_ = 0;
-        Utils::Logger& logger_;
+        Logger& logger_;
+        int sample_rate_;
+        Band band1_;
+        Band band2_;
+        FftProcessor<FrameSize>& fftProcessor_;
+        LpFilter<FrameSize>& filter_;
 };
 }

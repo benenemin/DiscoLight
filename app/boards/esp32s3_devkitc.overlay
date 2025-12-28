@@ -23,8 +23,17 @@
 		};
 	};
 
+	buttons {
+		compatible = "gpio-keys";
+		button1: button_1 {
+			gpios = < &gpio0 17 (GPIO_PULL_UP | GPIO_ACTIVE_LOW) >;
+			label = "Animation Control Button";
+		};
+	};
+
 	aliases {
 		led-strip = &led_strip;
+		ctrl-btn = &button1;
 		//led-strip-spi = &led_strip_spi;
 	};
 };
@@ -79,6 +88,7 @@
 //};
 
 
+
 &i2s0_default {
 	group1 {
 		pinmux = <I2S0_O_SD_GPIO38>;
@@ -95,12 +105,11 @@ i2s_led: &i2s0 {
 		compatible = "worldsemi,ws2812-i2s";
 
 		reg = <0>;
-		chain-length = <11>;
+		chain-length = <36>;
 		color-mapping = <LED_COLOR_ID_GREEN
 						 LED_COLOR_ID_RED
 						 LED_COLOR_ID_BLUE>;
-		//lrck-period = <20>;
-		reset-delay = <500>;
+		lrck-period = <7>;
 	};
 };
 

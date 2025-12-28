@@ -1,0 +1,1 @@
+FILE(GLOB animations *.cpp)
