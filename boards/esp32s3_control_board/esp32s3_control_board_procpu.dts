@@ -1,0 +1,131 @@
+/*
+ * Copyright (c) 2024 Espressif Systems (Shanghai) Co., Ltd.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+/dts-v1/;
+
+#include "espressif/esp32s3/esp32s3_wroom_n8r8.dtsi"
+#include "esp32s3_t_display-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/input/esp32-touch-sensor-input.h>
+#include <zephyr/dt-bindings/mipi_dbi/mipi_dbi.h>
+#include <espressif/partitions_0x0_amp.dtsi>
+
+#include <freq.h>
+#include <zephyr/dt-bindings/display/ili9xxx.h>
+
+/ {
+	model = "Espressif ESP32S3-CONTROL-BOARD PROCPU";
+	compatible = "espressif,esp32s3";
+
+	aliases {
+		i2c-0 = &i2c0;
+		watchdog0 = &wdt0;
+		led0 = &green_led;
+		ledred = &ledred;
+	};
+
+	chosen {
+		zephyr,sram = &sram1;
+		zephyr,console = &usb_serial;
+		zephyr,shell-uart = &usb_serial;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+		zephyr,bt-hci = &esp32_bt_hci;
+		zephyr,display = &st7796s;
+	};
+
+
+	leds {
+		compatible = "gpio-leds";
+		green_led: led0 {
+			gpios =  <&gpio0 3 GPIO_OPEN_DRAIN>;
+			label = "Power LED";
+		};
+		ledred: led_red {
+			gpios = <&gpio1 16 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	mipi_dbi {
+		compatible = "zephyr,mipi-dbi-spi";
+		status = "okay";
+		dc-gpios = <&gpio0 9 GPIO_ACTIVE_HIGH>;	/* D9 */
+		reset-gpios = <&gpio1 15 GPIO_ACTIVE_LOW>;
+		spi-dev = <&spi3>;
+		write-only;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		st7796s: st7796s@0 {
+			compatible = "sitronix,st7796s";
+			status = "okay";
+			reg = <0>;
+			width = <480>;
+			height = <271>;
+			mipi-max-frequency = <DT_FREQ_M(80)>;
+			mipi-mode = "MIPI_DBI_MODE_SPI_4WIRE";
+			/* Enable TE synchronization, using the rising edge */
+			te-mode = "MIPI_DBI_TE_RISING_EDGE";
+			invert-mode = "1-dot";
+			bpc = [1F 50 00 20];
+			dfc = [8A 07 3B];
+			pwr1 = [80 64];
+			pwr2 = <0x13>;
+			pwr3 = <0xA7>;
+			vcmpctl = <0x09>;
+			doca = [40 8A 00 00 29 19 A5 38];
+			pgc = [F0 06 0B 07 06 05 2E 33 47 3A 17 16 2E 31];
+			ngc = [F0 09 0D 09 08 23 2E 33 46 38 13 13 2C 32];
+			madctl = <0x28>;
+			color-invert;
+		};
+	};
+};
+
+&dma {
+	status = "okay";
+};
+
+
+&usb_serial {
+	status = "okay";
+};
+
+&timer0 {
+	status = "okay";
+};
+
+&timer1 {
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&spi3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	pinctrl-0 = <&spim3_default>;
+	pinctrl-names = "default";
+	dma-enabled;
+};
+
+&wdt0 {
+	status = "okay";
+};
+
+&trng0 {
+	status = "okay";
+};
+
+&esp32_bt_hci {
+	status = "okay";
+};

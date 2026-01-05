@@ -6,15 +6,17 @@
 
 #include "Animations/AnimationControl.hpp"
 #include "Core/EventTypes.hpp"
+#include "Utils/LoadSwitch.hpp"
 
-namespace Threads
+namespace Modules
 {
     template <size_t LedCount>
     class VisualizationThread final
     {
     public:
-        VisualizationThread(Core::EventTypes::AppSubscriber &subscriber, Logger& logger, Animations::AnimationControl<LedCount> &animationControl)
-            : logger_(logger), animation_control_(animationControl), subscriber_(subscriber)
+        VisualizationThread(Core::EventTypes::AppSubscriber& subscriber, Logger& logger,
+                            Animations::AnimationControl<LedCount>& animationControl, LoadSwitch &loadSwitch)
+            : logger_(logger), animation_control_(animationControl), subscriber_(subscriber), load_switch_(loadSwitch)
         {
         }
 
@@ -26,11 +28,11 @@ namespace Threads
         void Start()
         {
             animation_control_.Start(10'000);
-            subscriber_.Subscribe<Core::EventTypes::BeatEvent>([&](const Core::EventTypes::BeatEvent &event)
+            subscriber_.Subscribe<Core::EventTypes::BeatEvent>([&](const Core::EventTypes::BeatEvent& event)
             {
                 Notify();
             });
-            subscriber_.Subscribe<Core::EventTypes::ButtonEvent>([&](const Core::EventTypes::ButtonEvent &event)
+            subscriber_.Subscribe<Core::EventTypes::ButtonEvent>([&](const Core::EventTypes::ButtonEvent& event)
             {
                 logger_.info("Button event: %d", event.state);
                 if (event.state == UtilsButton::ButtonState::ReleasedShort)
@@ -41,8 +43,6 @@ namespace Threads
             this->logger_.info("Visualization module started.");
         }
 
-
-
     private:
         void Notify()
         {
@@ -52,7 +52,8 @@ namespace Threads
         Logger& logger_;
 
         float last_event_ms_ = 0;
-        Animations::AnimationControl<LedCount> &animation_control_;
+        Animations::AnimationControl<LedCount>& animation_control_;
         Core::EventTypes::AppSubscriber& subscriber_;
+        LoadSwitch &load_switch_;
     };
 }

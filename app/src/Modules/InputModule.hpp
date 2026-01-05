@@ -4,15 +4,15 @@
 #pragma once
 #include "Utils/Button.hpp"
 
-namespace Threads
+namespace Modules
 {
     class ButtonInputThread
     {
     public:
-        explicit ButtonInputThread(Core::EventTypes::AppPublisher &publisher, UtilsButton::Button &button, Logger &logger)
-        : button_(button), logger_(logger), publisher_(publisher)
-    {
-
+        explicit ButtonInputThread(Core::EventTypes::AppPublisher& publisher, UtilsButton::Button& button,
+                                   Logger& logger)
+            : button_(button), logger_(logger), publisher_(publisher)
+        {
         }
 
         int Initialize()
@@ -37,6 +37,7 @@ namespace Threads
             logger_.info("ButtonInputThread Initialized");
             return ret;
         }
+
     private:
         UtilsButton::Button& button_;
         Logger& logger_;

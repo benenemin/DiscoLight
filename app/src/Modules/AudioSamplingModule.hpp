@@ -6,14 +6,14 @@
 #include "ADC/AdcReader.hpp"
 #include "Core/EventTypes.hpp"
 
-namespace Threads
+namespace Modules
 {
-    template<size_t FrameSize>
+    template <size_t FrameSize>
     class AudioSampling
     {
     public:
-
-        explicit AudioSampling(Adc::AdcReader<FrameSize> &reader, Core::EventTypes::AppPublisher &publisher, Logger &logger)
+        explicit AudioSampling(Adc::AdcReader<FrameSize>& reader, Core::EventTypes::AppPublisher& publisher,
+                               Logger& logger)
             : reader_(reader), publisher_(publisher), logger_(logger)
         {
         }
@@ -25,7 +25,7 @@ namespace Threads
 
         void Start()
         {
-            this->reader_.Start([this](const int sample_rate_hz, array<float, FrameSize> &frame)
+            this->reader_.Start([this](const int sample_rate_hz, array<float, FrameSize>& frame)
             {
                 audioFrame.sample_rate_hz = sample_rate_hz;
                 audioFrame.samples = frame;
@@ -39,7 +39,7 @@ namespace Threads
             this->logger_.info("Audio sampling module started.");
         }
 
-        Adc::AdcReader<FrameSize> &reader_;
+        Adc::AdcReader<FrameSize>& reader_;
         Core::EventTypes::AppPublisher& publisher_;
         inline static Core::EventTypes::AudioFrame audioFrame{};
         Logger& logger_;

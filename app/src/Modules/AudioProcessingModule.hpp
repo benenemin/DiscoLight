@@ -9,23 +9,18 @@
 #include "arm_math.h"
 #include "Core/EventTypes.hpp"
 
-namespace Core::EventTypes
-{
-    struct AudioFrame;
-}
-
 using namespace SignalProcessing;
 
-namespace Threads
+namespace Modules
 {
     template <size_t FrameSize>
     class AudioProcessing final
     {
     public:
-        AudioProcessing(Core::EventTypes::AppPublisher &publisher, Core::EventTypes::AppSubscriber &subscriber,
-                        SignalProcessingBase<FrameSize> &signalProcessor, Logger &logger)
-        : logger_(logger), signalProcessor_(signalProcessor), publisher_(publisher), subscriber_(subscriber)
-    {
+        AudioProcessing(Core::EventTypes::AppPublisher& publisher, Core::EventTypes::AppSubscriber& subscriber,
+                        SignalProcessingBase<FrameSize>& signalProcessor, Logger& logger)
+            : logger_(logger), signalProcessor_(signalProcessor), publisher_(publisher), subscriber_(subscriber)
+        {
         }
 
         void Initialize(const int prio)
@@ -44,7 +39,7 @@ namespace Threads
         void Start()
         {
             timing_start();
-            subscriber_.Subscribe<Core::EventTypes::AudioFrame>([&](Core::EventTypes::AudioFrame &event)
+            subscriber_.Subscribe<Core::EventTypes::AudioFrame>([&](Core::EventTypes::AudioFrame& event)
             {
                 Notify(event);
             });
@@ -71,7 +66,7 @@ namespace Threads
 
         Logger& logger_;
 
-        SignalProcessingBase<FrameSize> &signalProcessor_;
+        SignalProcessingBase<FrameSize>& signalProcessor_;
         Core::EventTypes::AppPublisher& publisher_;
         Core::EventTypes::AppSubscriber& subscriber_;
     };
