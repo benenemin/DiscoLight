@@ -3,7 +3,6 @@
 
 namespace SignalProcessing
 {
-    template <size_t SampleSize>
     class LpFilter
     {
         public:
@@ -17,9 +16,9 @@ namespace SignalProcessing
             arm_biquad_cascade_df2T_init_f32(&S, numStageIir, this->coefs.data(), this->irrState.data());
         }
 
-        void Process(std::array<float, SampleSize>& input, std::array<float, SampleSize>& output)
+        void Process(const std::array<float, Constants::SamplingFrameSize>& input, std::array<float, Constants::SamplingFrameSize>& output) const
         {
-            arm_biquad_cascade_df2T_f32(&S, input.data(), output.data(), SampleSize);
+            arm_biquad_cascade_df2T_f32(&S, input.data(), output.data(), Constants::SamplingFrameSize);
         }
 
         private:

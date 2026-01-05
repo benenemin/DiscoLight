@@ -9,13 +9,12 @@ struct led_rgb;
 
 namespace Animations
 {
-  template<size_t LedCount>
   class IAnimation
   {
     public:
     virtual ~IAnimation() = default;
 
-    using LedChain = array<led_rgb, LedCount>;
+    using LedChain = array<led_rgb, Constants::ChainLength>;
     virtual void ProcessNextFrame(LedChain& leds) = 0;
     virtual void ProcessNextBeat() = 0;
   };

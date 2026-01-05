@@ -9,71 +9,23 @@
 #include <type_traits>
 #include <functional>   // <-- important
 
+#include "ThreadWorker.hpp"
+#include "Utils/Detail.hpp"
+
 extern "C" {
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
 }
 
-namespace detail
-{
-    template <typename... Ts>
-    constexpr std::size_t max_sizeof() noexcept {
-        std::size_t m = 1U;
-        ((m = (m < sizeof(Ts)) ? sizeof(Ts) : m), ...);
-        return m;
-    }
-}
-
 namespace zbus_cpp
 {
-    // If you already have a ThreadWorker elsewhere, prefer not redefining it here.
-    // Keeping your structure as-is.
-
-    class ThreadWorker
-    {
-    public:
-        using Worker = std::function<void()>;
-
-        explicit ThreadWorker(k_thread_stack_t& stack, size_t stack_size)
-            : stack(stack), stack_size(stack_size)
-        {
-        }
-
-        ~ThreadWorker() = default;
-
-        void Start(const Worker& worker, const int prio)
-        {
-            this->worker = worker;
-            thread_tid = k_thread_create(&thread_data, &this->stack,
-                                         this->stack_size, thread_entry_point,
-                                         this, nullptr, nullptr, prio, 0, K_NO_WAIT);
-        }
-
-    private:
-        k_thread_stack_t& stack;
-        size_t stack_size;
-        Worker worker;
-        k_thread thread_data{};
-        k_tid_t thread_tid{};
-
-        static void thread_entry_point(void* arg1, void*, void*)
-        {
-            auto self = static_cast<ThreadWorker*>(arg1);
-            if (!self || !self->worker)
-            {
-                return;
-            }
-            self->worker();
-        }
-    };
-
     template <typename... MsgTs>
     class MessageSubscriber final
     {
     public:
         using Observer = zbus_observer;
 
-        constexpr explicit MessageSubscriber(ThreadWorker& threadWorker,
+        constexpr explicit MessageSubscriber(Utils::ThreadWorker& threadWorker,
                                              const Observer* subscriber,
                                              Topic<MsgTs>... topics)
             : thread_worker_(threadWorker), subscriber_{subscriber}, topics_{topics...}
@@ -209,7 +161,7 @@ namespace zbus_cpp
             handled = true;
         }
 
-        ThreadWorker& thread_worker_;
+        Utils::ThreadWorker& thread_worker_;
         bool running = false;
         int prio = 0;
 
@@ -218,7 +170,7 @@ namespace zbus_cpp
         std::tuple<zbus_cpp::Topic<MsgTs>...> topics_{};
         std::tuple<Slot<MsgTs>...> slots_{};
 
-        static constexpr std::size_t kMaxMsgSize = detail::max_sizeof<MsgTs...>();
+        static constexpr std::size_t kMaxMsgSize = Detail::max_sizeof<MsgTs...>();
         std::array<std::byte, kMaxMsgSize> rx_buf_{};
     };
 }

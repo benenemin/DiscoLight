@@ -4,21 +4,21 @@
 
 // -------------------- 6) TwinWaveInterference --------------------
 // Two sinusoidal brightness waves counter-rotate; beat increases contrast.
-template <size_t LedCount>
-class TwinWaveInterference final : public Animations::IAnimation<LedCount> {
+
+class TwinWaveInterference final : public Animations::IAnimation {
 public:
     explicit TwinWaveInterference(uint8_t hue_a = 0, uint8_t hue_b = 128,
                                   uint8_t speed = 1, uint8_t base_v = 40) noexcept
         : hue_a_(hue_a), hue_b_(hue_b), speed_(speed), base_v_(base_v) {}
 
-    void ProcessNextFrame(typename Animations::IAnimation<LedCount>::LedChain &leds) override {
+    void ProcessNextFrame(Animations::IAnimation::LedChain &leds) override {
         // phase increment (Q0.8 for smoothness)
         pha_ = static_cast<uint8_t>(pha_ + speed_);
         phb_ = static_cast<uint8_t>(phb_ - speed_);
 
-        for (size_t i = 0; i < LedCount; ++i) {
+        for (size_t i = 0; i < Constants::ChainLength; ++i) {
             // map i to angle 0..255
-            const uint8_t ang = static_cast<uint8_t>((i * 256) / LedCount);
+            const uint8_t ang = static_cast<uint8_t>((i * 256) / Constants::ChainLength);
             // cosine-ish waves via triangle blend
             const uint8_t wa = 255 - static_cast<uint8_t>(std::abs(int(ang + pha_) - 128) * 2);
             const uint8_t wb = 255 - static_cast<uint8_t>(std::abs(int(ang + phb_) - 128) * 2);
@@ -26,10 +26,10 @@ public:
             uint16_t v = base_v_ + (contrast_ * wa) / 255 + (contrast_ * wb) / 255;
             if (v > 255) v = 255;
 
-            const led_rgb ca = LedUtil::hsv(hue_a_, 255, static_cast<uint8_t>(v));
-            const led_rgb cb = LedUtil::hsv(hue_b_, 255, static_cast<uint8_t>(v / 2));
+            const led_rgb ca = hsv(hue_a_, 255, static_cast<uint8_t>(v));
+            const led_rgb cb = hsv(hue_b_, 255, static_cast<uint8_t>(v / 2));
             led_rgb out = ca;
-            LedUtil::add_sat(out, cb);
+            add_sat(out, cb);
             leds[i] = out;
         }
     }

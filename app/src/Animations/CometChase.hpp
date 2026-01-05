@@ -6,11 +6,10 @@
 
 // -------------------- CometChase --------------------
 // Rotating bright head with fading tail; beat flips direction and boosts hue.
-template <size_t LedCount>
-class CometChase final : public Animations::IAnimation<LedCount>
+class CometChase final : public Animations::IAnimation
 {
 public:
-    using LedChain = typename Animations::IAnimation<LedCount>::LedChain;
+    using LedChain = LedChain;
     explicit CometChase(uint8_t initial_count = 3,
                         uint8_t tail_fade = 10,
                         uint8_t speed_px_per_frame = 1,
@@ -38,10 +37,10 @@ public:
         count = 0;
         // Tail fade; on a fresh beat we momentarily reduce the fade to “pop” the heads.
         const uint8_t fade_now = (boost_frames_ && tail_ > 8) ? static_cast<uint8_t>(tail_ - 8) : tail_;
-        LedUtil::fade(leds, fade_now);
+        fade(leds, fade_now);
 
         // Move & draw each active comet
-        const uint32_t period = (static_cast<uint32_t>(LedCount) << 8); // Q8.8 ring length
+        const uint32_t period = (static_cast<uint32_t>(Constants::ChainLength) << 8); // Q8.8 ring length
         const uint32_t step = (static_cast<uint32_t>(speed_) << 8);
 
         for (uint8_t i = 0; i < active_; ++i)
@@ -90,23 +89,23 @@ private:
     // Draw head (and tiny bloom) at idx
     static void add_at_(LedChain& s, size_t i, const led_rgb& c)
     {
-        LedUtil::add_sat(s[wrap_index<LedCount>(static_cast<int>(i))], c);
+        add_sat(s[wrap_index<Constants::ChainLength>(static_cast<int>(i))], c);
     }
 
     void stamp_head_(LedChain &s, size_t idx, uint8_t hue, uint8_t v) const
     {
-        add_at_(s, idx, LedUtil::hsv(hue, 255, v));
+        add_at_(s, idx, hsv(hue, 255, v));
         if (head_width_ >= 1)
         {
             const uint8_t v1 = static_cast<uint8_t>(v > 96 ? v - 96 : v / 2);
-            add_at_(s, idx + 1, LedUtil::hsv(hue, 255, v1));
-            add_at_(s, (idx == 0 ? LedCount - 1 : idx - 1), LedUtil::hsv(hue, 255, v1));
+            add_at_(s, idx + 1, hsv(hue, 255, v1));
+            add_at_(s, (idx == 0 ? Constants::ChainLength - 1 : idx - 1), hsv(hue, 255, v1));
         }
         if (head_width_ >= 2)
         {
             const uint8_t v2 = static_cast<uint8_t>(v1_scale_);
-            add_at_(s, idx + 2, LedUtil::hsv(hue, 255, v2));
-            add_at_(s, (idx + LedCount - 2) % LedCount, LedUtil::hsv(hue, 255, v2));
+            add_at_(s, idx + 2, hsv(hue, 255, v2));
+            add_at_(s, (idx + Constants::ChainLength - 2) % Constants::ChainLength, hsv(hue, 255, v2));
         }
     }
 
@@ -119,7 +118,7 @@ private:
     void reseed_positions_() noexcept
     {
         // Evenly distribute around the ring
-        const uint32_t period = (static_cast<uint32_t>(LedCount) << 8);
+        const uint32_t period = (static_cast<uint32_t>(Constants::ChainLength) << 8);
         for (uint8_t i = 0; i < active_; ++i)
         {
             const uint32_t step = (period * i) / (active_ ? active_ : 1);

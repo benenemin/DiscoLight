@@ -8,33 +8,32 @@
 
 namespace SignalProcessing
 {
-    template<size_t FrameSize>
-class FftProcessor
-{
+    class FftProcessor
+    {
     public:
+        FftProcessor()
+        {
+        }
 
-    FftProcessor()
-    {
+        int Initialize()
+        {
+            return arm_rfft_fast_init_f32(&this->rFFT_, Constants::SamplingFrameSize);
+        }
 
-    }
+        void Process(array<float, Constants::SamplingFrameSize>& input,
+                     array<float, Constants::SamplingFrameSize / 2>& output)
+        {
+            arm_rfft_fast_f32(&this->rFFT_, input.data(), this->buffer.data(), 0);
+            arm_cmplx_mag_f32(this->buffer.data(), output.data(), output.size());
 
-    int Initialize()
-    {
-        return arm_rfft_fast_init_f32(&this->rFFT_, FrameSize);
-    }
+            // smooth outliers in extrema and DC
+            output[0] = 0;
+            output[Constants::SamplingFrameSize / 2 - 1] = 0;
+            output[Constants::SamplingFrameSize / 2 - 2] = 0;
+        }
 
-    void Process(array<float, FrameSize>& input, array<float, FrameSize/2>& output)
-    {
-        arm_rfft_fast_f32(&this->rFFT_, input.data(), this->buffer.data(), 0);
-        arm_cmplx_mag_f32(this->buffer.data(), output.data(), output.size());
-
-        // smooth outliers in extrema and DC
-        output[0] = 0;
-        output[FrameSize/2 - 1] = 0;
-        output[FrameSize/2 - 2] = 0;
-    }
     private:
         arm_rfft_fast_instance_f32 rFFT_{};
-        array<float, FrameSize> buffer{};
-};
+        array<float, Constants::SamplingFrameSize> buffer{};
+    };
 }

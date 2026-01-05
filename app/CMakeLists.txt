@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.28)
-# set(DTC_OVERLAY_FILE "boards/nucleo_f446ze.overlay")
 set(DTC_OVERLAY_FILE "boards/esp32s3_devkitc.overlay")
 set(CMAKE_CXX_STANDARD 20)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})

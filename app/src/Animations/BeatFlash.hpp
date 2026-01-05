@@ -5,10 +5,9 @@
 #include "IAnimation.hpp"
 // If Additive == false: overwrite the strip with the flash color while active, else black.
 // If Additive == true : add flash color on top of existing content (preserves what’s underneath).
-template <size_t LedCount>
-class BeatFlash final : public Animations::IAnimation<LedCount> {
+class BeatFlash final : public Animations::IAnimation
+{
 public:
-
     // color: flash color (RGB)vv
     // hold_frames: number of frames to keep at full brightness after a beat
     // decay_per_frame: how much brightness to subtract each frame after hold (0..255). Larger = faster fade.
@@ -17,47 +16,61 @@ public:
                        uint8_t decay_per_frame = 24) noexcept
         : color_(color),
           hold_(hold_frames),
-          decay_(decay_per_frame) {}
+          decay_(decay_per_frame)
+    {
+    }
 
     // ---- IAnimation ----
-    void ProcessNextFrame(typename Animations::IAnimation<LedCount>::LedChain &leds) override {
+    void ProcessNextFrame(typename Animations::IAnimation::LedChain& leds) override
+    {
         uint8_t v = 0;
 
-        if (hold_cnt_ > 0) {
+        if (hold_cnt_ > 0)
+        {
             v = 255;
-        } else if (level_ > 0) {
+        }
+        else if (level_ > 0)
+        {
             v = level_;
         }
 
 
-        if (v) {
+        if (v)
+        {
             const led_rgb c = scale_color_(color_, v);
             std::fill(leds.begin(), leds.end(), c);
-        } else {
+        }
+        else
+        {
             // fully off between flashes
             std::fill(leds.begin(), leds.end(), led_rgb{0, 0, 0});
         }
 
 
         // Envelope update (run AFTER drawing so a fresh beat shows at full V first)
-        if (hold_cnt_ > 0) {
+        if (hold_cnt_ > 0)
+        {
             --hold_cnt_;
-        } else if (level_ > 0) {
+        }
+        else if (level_ > 0)
+        {
             level_ = (level_ > decay_) ? static_cast<uint8_t>(level_ - decay_) : 0;
         }
     }
 
-    void ProcessNextBeat() override {
+    void ProcessNextBeat() override
+    {
         hold_cnt_ = hold_;
-        level_    = 255;   // reset to full brightness
+        level_ = 255; // reset to full brightness
     }
 
 private:
-    static led_rgb scale_color_(const led_rgb& c, uint8_t v) noexcept {
+    static led_rgb scale_color_(const led_rgb& c, uint8_t v) noexcept
+    {
         return {
-            LedUtil::scale8(c.r, v),
-            LedUtil::scale8(c.g, v),
-            LedUtil::scale8(c.b, v)
+            scale8(c.r, v),
+            scale8(c.g, v),
+            scale8(c.b, v)
         };
     }
 

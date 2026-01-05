@@ -3,29 +3,31 @@
 //
 
 #pragma once
+
+#include "Modules/ModuleBase.hpp"
 #include "ADC/AdcReader.hpp"
 #include "Core/EventTypes.hpp"
 
 namespace Modules
 {
-    template <size_t FrameSize>
-    class AudioSampling
+    class AudioSamplingModule final : ModuleBase
     {
     public:
-        explicit AudioSampling(Adc::AdcReader<FrameSize>& reader, Core::EventTypes::AppPublisher& publisher,
+        explicit AudioSamplingModule(Adc::AdcReader& reader, AppPublisher& publisher, AppSubscriber &subscriber,
                                Logger& logger)
-            : reader_(reader), publisher_(publisher), logger_(logger)
+            : ModuleBase(publisher, subscriber), reader_(reader), logger_(logger)
         {
         }
 
-        void Initialize(const int samplingInterval_us) const
+        void Initialize()
         {
-            this->reader_.Initialize(samplingInterval_us);
+            this->reader_.Initialize(Constants::SamplingInterval_us);
+            ModuleBase::Initialize();
         }
 
-        void Start()
+        void Start() const
         {
-            this->reader_.Start([this](const int sample_rate_hz, array<float, FrameSize>& frame)
+            this->reader_.Start([this](const int sample_rate_hz, const array<float, Constants::SamplingFrameSize>& frame)
             {
                 audioFrame.sample_rate_hz = sample_rate_hz;
                 audioFrame.samples = frame;
@@ -39,8 +41,7 @@ namespace Modules
             this->logger_.info("Audio sampling module started.");
         }
 
-        Adc::AdcReader<FrameSize>& reader_;
-        Core::EventTypes::AppPublisher& publisher_;
+        Adc::AdcReader& reader_;
         inline static Core::EventTypes::AudioFrame audioFrame{};
         Logger& logger_;
     };

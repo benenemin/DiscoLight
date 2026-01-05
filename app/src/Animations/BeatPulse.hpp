@@ -9,8 +9,7 @@
 
 using namespace LedUtil;
 
-template <size_t LedCount>
-class BeatPulse final : public Animations::IAnimation<LedCount>
+class BeatPulse final : public Animations::IAnimation
 {
 public:
     // color in HSV; hue animates slowly, v is controlled by pulse level
@@ -20,8 +19,8 @@ public:
     {
     }
 
-    typedef array<led_rgb, LedCount> ledChain;
-    void ProcessNextFrame(typename Animations::IAnimation<LedCount>::LedChain &leds) override
+    typedef array<led_rgb, Constants::ChainLength> ledChain;
+    void ProcessNextFrame(typename Animations::IAnimation::LedChain &leds) override
     {
         // decay pulse level
         if (level_ > decay_) level_ -= decay_;

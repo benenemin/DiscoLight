@@ -5,7 +5,7 @@
 #pragma once
 
 #include "Utils/Logger.hpp"
-#include "SignalProcessing/BeatDetectorV2.hpp"
+#include "SignalProcessing/BeatDetector.hpp"
 #include "arm_math.h"
 #include "Core/EventTypes.hpp"
 
@@ -13,17 +13,16 @@ using namespace SignalProcessing;
 
 namespace Modules
 {
-    template <size_t FrameSize>
-    class AudioProcessing final
+    class AudioProcessingModule final
     {
     public:
-        AudioProcessing(Core::EventTypes::AppPublisher& publisher, Core::EventTypes::AppSubscriber& subscriber,
-                        SignalProcessingBase<FrameSize>& signalProcessor, Logger& logger)
+        AudioProcessingModule(AppPublisher& publisher, AppSubscriber& subscriber,
+                        SignalProcessingBase& signalProcessor, Logger& logger)
             : logger_(logger), signalProcessor_(signalProcessor), publisher_(publisher), subscriber_(subscriber)
         {
         }
 
-        void Initialize(const int prio)
+        void Initialize()
         {
             timing_init();
             auto ret = signalProcessor_.Initialize();
@@ -66,8 +65,8 @@ namespace Modules
 
         Logger& logger_;
 
-        SignalProcessingBase<FrameSize>& signalProcessor_;
-        Core::EventTypes::AppPublisher& publisher_;
-        Core::EventTypes::AppSubscriber& subscriber_;
+        SignalProcessingBase& signalProcessor_;
+        AppPublisher& publisher_;
+        AppSubscriber& subscriber_;
     };
 }

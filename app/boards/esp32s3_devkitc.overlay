@@ -18,7 +18,7 @@
 
 	leds {
 		compatible = "gpio-leds";
-		led0: led_0 {
+		sigled: sig_led {
 			gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
 		};
 	};
@@ -29,6 +29,11 @@
 			gpios = < &gpio0 17 (GPIO_PULL_UP | GPIO_ACTIVE_LOW) >;
 			label = "Animation Control Button";
 		};
+	};
+
+	load_switch: load_switch {
+		compatible = "power-switch";
+		gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
 	};
 
 	aliases {
@@ -51,43 +56,6 @@
 		zephyr,resolution = <12>;
 	};
 };
-
-//&spi2
-//{
-//	status = "okay";
-//	#address-cells = <1>;
-//	#size-cells = <0>;
-//	pinctrl-0 = <&spim2_default>;
-//	pinctrl-names = "default";
-//
-//	/* Workaround to support WS2812 driver */
-//	line-idle-low;
-//
-////	led_strip_spi: ws2812@0 {
-////		compatible = "worldsemi,ws2812-spi";
-////
-////		/* SPI */
-////		reg = <0>; /* ignored, but necessary for SPI bindings */
-////		spi-max-frequency = <6400000>;
-////
-////		/* WS2812 */
-////		chain-length = <11>;
-////		spi-cpha;
-////		spi-one-frame = <0xf0>;  /* 625 ns high and 625 ns low */
-////		spi-zero-frame = <0xc0>; /* 312.5 ns high and 937.5 ns low */
-////		color-mapping = <LED_COLOR_ID_GREEN
-////						 LED_COLOR_ID_RED
-////						 LED_COLOR_ID_BLUE>;
-////	};
-//};
-//
-//&spim2_default {
-//	group1 {
-//		pinmux = <SPIM2_MOSI_GPIO37>;
-//	};
-//};
-
-
 
 &i2s0_default {
 	group1 {

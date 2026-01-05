@@ -10,16 +10,15 @@
 
 namespace SignalProcessing
 {
-    template <size_t FrameSize>
-    class BeatDetectorV2 final : public SignalProcessingBase<FrameSize>
+    class BeatDetector final : public SignalProcessingBase
     {
     public:
-        explicit BeatDetectorV2(FftProcessor<FrameSize>& fftProcessor, LpFilter<FrameSize>& filter)
+        explicit BeatDetector(FftProcessor& fftProcessor, LpFilter& filter)
             : filter_(filter), fftProcessor_(fftProcessor)
         {
-            const uint32_t bandSize = (FrameSize / 2 != 0u)
-                                          ? (10000 / FrameSize / 2)
-                                          : 0u;
+            constexpr uint32_t bandSize = (Constants::SamplingFrameSize / 2 != 0u)
+                                              ? (10000 / Constants::SamplingFrameSize / 2)
+                                              : 0u;
             lo = (bandSize ? (30 / bandSize) : 0u);
             hi = (bandSize ? (140 / bandSize) : 0u);
         }
@@ -30,7 +29,7 @@ namespace SignalProcessing
             return this->fftProcessor_.Initialize();
         }
 
-        bool Process(array<float, FrameSize>& samples) override
+        bool Process(array<float, Constants::SamplingFrameSize>& samples) override
         {
             /* Filter */
             this->filter_.Process(samples, this->filterOut_);
@@ -50,7 +49,7 @@ namespace SignalProcessing
 
             // Calculate peak
             int32_t maxSample = 0;
-            for (size_t i = 0; i < FrameSize; i++)
+            for (size_t i = 0; i < Constants::SamplingFrameSize; i++)
             {
                 const int32_t absSample = fabsf(samples[i]);
                 if (absSample > maxSample)
@@ -103,7 +102,7 @@ namespace SignalProcessing
         }
 
         // Update auto gain
-        void updateAutoGain(float level)
+        void updateAutoGain(const float level)
         {
             static float targetLevel = 0.7f;
             static float avgLevel = 0.0f;
@@ -129,10 +128,10 @@ namespace SignalProcessing
         float autoGainValue = 1.0f;
         float peakLevel = 0;
         float beatSensitivity = 0.9f;
-        array<float, FrameSize> filterOut_{};
-        array<float, FrameSize / 2> fft_power{};
-        LpFilter<FrameSize>& filter_;
-        FftProcessor<FrameSize>& fftProcessor_;
+        array<float, Constants::SamplingFrameSize> filterOut_{};
+        array<float, Constants::SamplingFrameSize / 2> fft_power{};
+        LpFilter& filter_;
+        FftProcessor& fftProcessor_;
 
         size_t lo = 0;
         size_t hi = 0;

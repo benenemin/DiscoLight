@@ -44,20 +44,20 @@ namespace Animations
         bool cycleAnimations;
     };
 
-    template <size_t LedCount>
     class AnimationControl
     {
     public:
-        explicit AnimationControl(PeriodicTimer& frameTimer, Visualization::LedStripController<LedCount>& ledStrip, Visualization::LedControl& led)
+        explicit AnimationControl(PeriodicTimer& frameTimer, Visualization::LedStripController& ledStrip,
+                                  Visualization::LedControl& led)
             : currentAnimationType(BeatPulseType), frame_timer_(frameTimer), led_strip_(ledStrip), led_(led), mutex_()
         {
-            anim_pulse = BeatPulse<LedCount>(0 /*hue*/, 255 /*sat*/, 6 /*decay*/, 1);
-            larson_scanner = LarsonScanner<LedCount>();
-            rainbow_wheel = RainbowWheel < LedCount > ();
-            comet_chase = CometChase < LedCount > ();
-            segment_chase = SegmentChase < LedCount > ();
-            solar_corona = SolarCorona < LedCount > ();
-            beat_flash = BeatFlash < LedCount > ();
+            anim_pulse = BeatPulse(0 /*hue*/, 255 /*sat*/, 6 /*decay*/, 1);
+            larson_scanner = LarsonScanner();
+            rainbow_wheel = RainbowWheel();
+            comet_chase = CometChase();
+            segment_chase = SegmentChase();
+            solar_corona = SolarCorona();
+            beat_flash = BeatFlash();
             currentAnimation = &beat_flash;
             animationState.currentType = currentAnimationType;
             animationState.cycleAnimations = false;
@@ -141,9 +141,9 @@ namespace Animations
         }
 
     private:
-                void NextFrame()
+        void NextFrame()
         {
-            if (animationState.cycleAnimations && frame_counter%1000 == 0)
+            if (animationState.cycleAnimations && frame_counter % 1000 == 0)
             {
                 frame_counter = 0;
                 currentAnimationType = static_cast<AnimationType>((currentAnimationType + 1) % NumAnimations);
@@ -161,22 +161,22 @@ namespace Animations
             frame_counter++;
         }
 
-        IAnimation<LedCount>* currentAnimation;
+        IAnimation* currentAnimation;
         AnimationType currentAnimationType;
         Animation animationState;
 
-        BeatPulse<LedCount> anim_pulse;
-        LarsonScanner<LedCount> larson_scanner;
-        RainbowWheel<LedCount> rainbow_wheel;
-        BeatRipples<LedCount> beat_ripples;
-        CometChase<LedCount> comet_chase;
-        SegmentChase<LedCount> segment_chase;
-        TwinWaveInterference<LedCount> twin_wave_interference;
-        SolarCorona<LedCount> solar_corona;
-        BeatFlash<LedCount> beat_flash;
+        BeatPulse anim_pulse;
+        LarsonScanner larson_scanner;
+        RainbowWheel rainbow_wheel;
+        BeatRipples beat_ripples;
+        CometChase comet_chase;
+        SegmentChase segment_chase;
+        TwinWaveInterference twin_wave_interference;
+        SolarCorona solar_corona;
+        BeatFlash beat_flash;
 
         PeriodicTimer& frame_timer_;
-        Visualization::LedStripController<LedCount>& led_strip_;
+        Visualization::LedStripController& led_strip_;
         Visualization::LedControl& led_;
 
         int frame_counter = 0;

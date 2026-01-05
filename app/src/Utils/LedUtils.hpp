@@ -87,7 +87,8 @@ namespace LedUtil
     };
 
     template <size_t N>
-    static size_t wrap_index(int i) noexcept {
+    static size_t wrap_index(int i) noexcept
+    {
         const int m = static_cast<int>(N);
         int r = i % m;
         return static_cast<size_t>(r < 0 ? r + m : r);

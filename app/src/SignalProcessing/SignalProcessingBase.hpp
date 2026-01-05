@@ -6,7 +6,6 @@
 
 namespace SignalProcessing
 {
-    template <size_t FrameSize>
     class SignalProcessingBase
     {
     protected:
@@ -14,6 +13,6 @@ namespace SignalProcessing
 
     public:
         virtual int Initialize() = 0;
-        virtual bool Process(array<float, FrameSize>& samples) = 0;
+        virtual bool Process(array<float, Constants::SamplingFrameSize>& samples) = 0;
     };
 }

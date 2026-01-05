@@ -6,16 +6,16 @@
 
 namespace Modules
 {
-    class ButtonInputThread
+    class InputModule
     {
     public:
-        explicit ButtonInputThread(Core::EventTypes::AppPublisher& publisher, UtilsButton::Button& button,
+        explicit InputModule(AppPublisher& publisher, UtilsButton::Button& button,
                                    Logger& logger)
             : button_(button), logger_(logger), publisher_(publisher)
         {
         }
 
-        int Initialize()
+        int Initialize() const
         {
             timing_init();
             timing_start();
@@ -41,6 +41,6 @@ namespace Modules
     private:
         UtilsButton::Button& button_;
         Logger& logger_;
-        Core::EventTypes::AppPublisher& publisher_;
+        AppPublisher& publisher_;
     };
 };

@@ -1,6 +1,6 @@
 board:
   name: esp32s3_control_board
-  full_name: ESP32-S3-T-DISPLAY
+  full_name: ESP32-S3-CONTROL-BOARD
   vendor: espressif
   socs:
   - name: esp32s3

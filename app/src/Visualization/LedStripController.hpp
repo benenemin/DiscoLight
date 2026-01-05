@@ -9,11 +9,10 @@
 
 namespace Visualization
 {
-    template <size_t LedCount>
     class LedStripController
     {
     public:
-        typedef array<led_rgb, LedCount> ledChain;
+        typedef array<led_rgb, Constants::ChainLength> ledChain;
 
         LedStripController(const device* ledStrip, Logger& logger)
             : logger_(logger), led_strip_(ledStrip)
@@ -45,7 +44,7 @@ namespace Visualization
 
         void FlashColor(const uint8_t red, const uint8_t green, const uint8_t blue)
         {
-            for (int i = 0; i < leds_.size(); ++i)
+            for (size_t i = 0; i < leds_.size(); ++i)
             {
                 SetLedColor(leds_[i], red, green, blue);
             }
@@ -54,7 +53,7 @@ namespace Visualization
 
         void UpdateLedStrip()
         {
-            auto ret = led_strip_update_rgb(this->led_strip_, leds_.data(), LedCount);
+            auto ret = led_strip_update_rgb(this->led_strip_, leds_.data(), Constants::ChainLength);
             if (ret != 0)
             {
                 this->logger_.error("Led strip update failed: %d.", ret);

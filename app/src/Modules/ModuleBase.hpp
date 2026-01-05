@@ -3,14 +3,35 @@
 //
 
 #pragma once
+#include "ModuleState.hpp"
+#include "Core/EventTypes.hpp"
+
+using Core::EventTypes::AppPublisher;
+using Core::EventTypes::AppSubscriber;
+
 namespace Modules
 {
     class ModuleBase
     {
-        public:
-        IModule();
-        virtual ~IModule();
+    protected:
+        ModuleBase(AppPublisher& publisher, AppSubscriber& subscriber)
+            : publisher_(publisher), subscriber_(subscriber)
+        {
+        }
 
-        virtual void Initialize();
+        void Initialize()
+        {
+            state_ = Initialized;
+        }
+
+        void Start()
+        {
+            state_ = Running;
+        }
+
+        AppPublisher& publisher_;
+        AppSubscriber& subscriber_;
+
+        ModuleState state_ = Uninitialized;
     };
-};
+}

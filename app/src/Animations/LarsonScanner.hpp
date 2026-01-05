@@ -12,13 +12,12 @@ using namespace LedUtil;
 // 2) LarsonScanner — bouncing dot with fading tail
 //    Beat: reverse direction + brief boost
 // =====================================================
-template <size_t LedCount>
-class LarsonScanner final : public Animations::IAnimation<LedCount> {
+class LarsonScanner final : public Animations::IAnimation {
 public:
     explicit LarsonScanner(uint8_t hue = 0, uint8_t tail_fade = 32, uint8_t speed = 1)
         : hue_(hue), tail_(tail_fade), speed_(speed) {}
 
-    void ProcessNextFrame(typename Animations::IAnimation<LedCount>::LedChain &leds) override {
+    void ProcessNextFrame(LedChain &leds) override {
         auto& s = leds;
 
         fade(s, tail_);
@@ -29,15 +28,15 @@ public:
 
         if (pos <= 0)
         {
-            pos = LedCount - pos;
+            pos = Constants::ChainLength - pos;
             dir_ = 1;
-            subpos_ = LedCount - pos;
+            subpos_ = Constants::ChainLength - pos;
         }
-        else if (pos >= int(LedCount - 1))
+        else if (pos >= int(Constants::ChainLength - 1))
         {
-            pos = pos % LedCount;
+            pos = pos % Constants::ChainLength;
             dir_ = 1;
-            subpos_ = uint16_t(pos << 8) % LedCount;
+            subpos_ = uint16_t(pos << 8) % Constants::ChainLength;
         }
 
         // head brightness stronger, tail is already faded in buffer

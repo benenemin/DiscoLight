@@ -10,17 +10,16 @@
 
 namespace Modules
 {
-    template <size_t LedCount>
-    class VisualizationThread final
+    class VisualizationModule final
     {
     public:
-        VisualizationThread(Core::EventTypes::AppSubscriber& subscriber, Logger& logger,
-                            Animations::AnimationControl<LedCount>& animationControl, LoadSwitch &loadSwitch)
+        VisualizationModule(AppSubscriber& subscriber, Logger& logger,
+                            Animations::AnimationControl& animationControl, LoadSwitch &loadSwitch)
             : logger_(logger), animation_control_(animationControl), subscriber_(subscriber), load_switch_(loadSwitch)
         {
         }
 
-        void Initialize(const int prio)
+        void Initialize()
         {
             animation_control_.Initialize();
         }
@@ -40,6 +39,7 @@ namespace Modules
                     animation_control_.IterateAnimation();
                 }
             });
+            load_switch_.Close();
             this->logger_.info("Visualization module started.");
         }
 
@@ -52,8 +52,8 @@ namespace Modules
         Logger& logger_;
 
         float last_event_ms_ = 0;
-        Animations::AnimationControl<LedCount>& animation_control_;
-        Core::EventTypes::AppSubscriber& subscriber_;
+        Animations::AnimationControl& animation_control_;
+        AppSubscriber& subscriber_;
         LoadSwitch &load_switch_;
     };
 }

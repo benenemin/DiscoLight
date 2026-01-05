@@ -100,10 +100,10 @@
 
   namespace Utils {
 
-  void Logger::dbg(const char*, ...) const {}
-  void Logger::inf(const char*, ...) const {}
-  void Logger::wrn(const char*, ...) const {}
-  void Logger::err(const char*, ...) const {}
+  void Logger::debug(const char*, ...) const {}
+  void Logger::info(const char*, ...) const {}
+  void Logger::warning(const char*, ...) const {}
+  void Logger::error(const char*, ...) const {}
 
   } // namespace Utils
 
