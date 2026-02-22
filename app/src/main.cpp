@@ -16,11 +16,11 @@ int main()
 {
     LOG_INF("App started.");
 
-    App::Application app;
+    static App::Application app;
     LOG_INF("Initializing application...");
-    //app.Initialize();
+    app.Initialize();
     LOG_INF("Starting application...");
-    //app.Start();
+    app.Start();
 
     LOG_INF("Application running...");
     k_sleep(K_FOREVER);
