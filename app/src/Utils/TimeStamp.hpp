@@ -3,20 +3,22 @@
 //
 #pragma once
 
+#include <cstdint>
+
 namespace Utils::TimeStamp
 {
     struct Timestamp
     {
         float GetUs() const
         {
-            return nSec/1000.0f;
+            return nSec / 1000.0f;
         }
 
         float GetMs() const
         {
-            return GetUs()/1000.0f;
+            return GetUs() / 1000.0f;
         }
 
-        uint64_t nSec {};
+        uint64_t nSec{};
     };
 }

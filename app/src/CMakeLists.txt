@@ -5,6 +5,7 @@ target_sources(app PRIVATE
 )
 
 # Submodules
+add_subdirectory(App)
 add_subdirectory(Core)
 add_subdirectory(SignalProcessing)
 add_subdirectory(Modules)

@@ -4,136 +4,113 @@
 
 #pragma once
 
+#include <algorithm>
+#include <array>
+#include <cmath>
+
+#include <dsp/statistics_functions.h>
+
+#include "Constants.hpp"
 #include "FftProcessor.hpp"
-#include "SignalProcessingBase.hpp"
 #include "LpFilter.hpp"
+#include "SignalProcessingBase.hpp"
 
 namespace SignalProcessing
 {
-    class BeatDetector final : public SignalProcessingBase
+class BeatDetector final : public SignalProcessingBase
+{
+public:
+    explicit BeatDetector(FftProcessor& fft_processor, LpFilter& filter)
+        : filter_(filter), fft_processor_(fft_processor)
     {
-    public:
-        explicit BeatDetector(FftProcessor& fftProcessor, LpFilter& filter)
-            : filter_(filter), fftProcessor_(fftProcessor)
+        constexpr uint32_t band_size =
+            (Constants::SamplingFrameSize / 2 != 0u) ? (10000 / Constants::SamplingFrameSize / 2) : 0u;
+        lo_ = (band_size != 0u) ? (30 / band_size) : 0u;
+        hi_ = (band_size != 0u) ? (140 / band_size) : 0u;
+    }
+
+    int Initialize() override
+    {
+        filter_.Initialize();
+        return fft_processor_.Initialize();
+    }
+
+    bool Process(std::array<float, Constants::SamplingFrameSize>& samples) override
+    {
+        filter_.Process(samples, filter_output_);
+        fft_processor_.Process(filter_output_, fft_power_);
+
+        float acc = 0.0f;
+        const size_t width = hi_ - lo_;
+        for (size_t i = lo_; i < hi_; ++i)
         {
-            constexpr uint32_t bandSize = (Constants::SamplingFrameSize / 2 != 0u)
-                                              ? (10000 / Constants::SamplingFrameSize / 2)
-                                              : 0u;
-            lo = (bandSize ? (30 / bandSize) : 0u);
-            hi = (bandSize ? (140 / bandSize) : 0u);
+            acc += std::isnan(fft_power_[i]) ? 0.0f : fft_power_[i];
         }
+        const float band_energy = width != 0 ? (acc / static_cast<float>(width)) : 0.0f;
 
-        int Initialize() override
+        // Keep current auto-gain behavior.
+        UpdateAutoGain(band_energy);
+        return DetectBeat(band_energy);
+    }
+
+private:
+    bool DetectBeat(const float energy)
+    {
+        beat_history_[beat_history_index_] = energy;
+        beat_history_index_ = (beat_history_index_ + 1) % kHistorySize;
+
+        beat_average_ = 0.0f;
+        for (int i = 0; i < kHistorySize; ++i)
         {
-            this->filter_.Initialize();
-            return this->fftProcessor_.Initialize();
+            beat_average_ += beat_history_[i];
         }
+        beat_average_ /= kHistorySize;
 
-        bool Process(array<float, Constants::SamplingFrameSize>& samples) override
+        beat_variance_ = 0.0f;
+        for (int i = 0; i < kHistorySize; ++i)
         {
-            /* Filter */
-            this->filter_.Process(samples, this->filterOut_);
-            this->fftProcessor_.Process(this->filterOut_, this->fft_power);
-
-            // 1) Compute band energies (average of bins in range)
-            float acc = 0.0f;
-            const size_t width = hi - lo;
-            for (size_t i = lo; i < hi; ++i) acc += isnan(this->fft_power[i]) ? 0.0f : this->fft_power[i];
-            auto band_energy = (width ? (acc / static_cast<float>(width)) : 0.0f);
-
-
-            // Get audio levels
-            float rms = 0.0f;
-            arm_rms_f32(samples.data(), samples.size(), &rms);
-            rms = rms / 32768.0f;
-
-            // Calculate peak
-            int32_t maxSample = 0;
-            for (size_t i = 0; i < Constants::SamplingFrameSize; i++)
-            {
-                const int32_t absSample = fabsf(samples[i]);
-                if (absSample > maxSample)
-                {
-                    maxSample = absSample;
-                }
-            }
-
-            const float peak = static_cast<float>(maxSample) / 32768.0f;
-            peakLevel = peakLevel * 0.9f + peak * 0.1f; // Smooth peak
-
-            // Update auto gain
-            updateAutoGain(band_energy);
-
-            // Beat detection
-            return detectBeat(band_energy);
+            const float diff = beat_history_[i] - beat_average_;
+            beat_variance_ += diff * diff;
         }
+        beat_variance_ /= kHistorySize;
 
-    private:
-        // Beat detection algorithm
-        bool detectBeat(float energy)
+        const auto threshold = beat_average_ + (beat_sensitivity_ * std::sqrt(beat_variance_));
+        is_beat_ = energy > threshold && energy > 0.01f;
+        const bool beat = is_beat_ && !was_beat_;
+        was_beat_ = is_beat_;
+        return beat;
+    }
+
+    void UpdateAutoGain(const float level)
+    {
+        static float target_level = 0.7f;
+        static float avg_level = 0.0f;
+
+        avg_level = avg_level * 0.95f + level * 0.05f;
+        if (avg_level > 0.01f)
         {
-            beatHistory[beatHistoryIndex] = energy;
-            beatHistoryIndex = (beatHistoryIndex + 1) % hist_size;
-
-            // Calculate average
-            beatAverage = 0;
-            for (int i = 0; i < hist_size; i++)
-            {
-                beatAverage += beatHistory[i];
-            }
-            beatAverage /= hist_size;
-
-            // Calculate variance
-            beatVariance = 0;
-            for (int i = 0; i < hist_size; i++)
-            {
-                const float diff = beatHistory[i] - beatAverage;
-                beatVariance += diff * diff;
-            }
-            beatVariance /= hist_size;
-
-            // Detect beat
-            const auto threshold = beatAverage + (beatSensitivity * sqrt(beatVariance));
-
-            isBeat = energy > threshold && energy > 0.01f;
-            const auto beat = isBeat && !wasBeat;
-            wasBeat = isBeat;
-            return beat;
+            float gain_adjust = target_level / avg_level;
+            gain_adjust = std::max(0.5f, std::min(gain_adjust, 2.0f));
+            auto_gain_value_ = auto_gain_value_ * 0.9f + gain_adjust * 0.1f;
         }
+    }
 
-        // Update auto gain
-        void updateAutoGain(const float level)
-        {
-            static float targetLevel = 0.7f;
-            static float avgLevel = 0.0f;
+    static constexpr int kHistorySize = 40;
+    float beat_history_[kHistorySize]{0.0f};
+    int beat_history_index_{0};
+    float beat_average_{0.0f};
+    float beat_variance_{0.0f};
+    bool is_beat_{false};
+    bool was_beat_{false};
+    float auto_gain_value_{1.0f};
+    float beat_sensitivity_{0.9f};
 
-            avgLevel = avgLevel * 0.95f + level * 0.05f;
+    std::array<float, Constants::SamplingFrameSize> filter_output_{};
+    std::array<float, Constants::SamplingFrameSize / 2> fft_power_{};
+    LpFilter& filter_;
+    FftProcessor& fft_processor_;
 
-            if (avgLevel > 0.01f)
-            {
-                float gainAdjust = targetLevel / avgLevel;
-                gainAdjust = max(0.5f, min(gainAdjust, 2.0f));
-                autoGainValue = autoGainValue * 0.9f + gainAdjust * 0.1f;
-            }
-        }
-
-        // Audio processing variables
-        static constexpr int hist_size = 40;
-        float beatHistory[hist_size] = {0}; // Reduced from 43
-        int beatHistoryIndex = 0;
-        float beatAverage = 0;
-        float beatVariance = 0;
-        bool isBeat = false;
-        bool wasBeat = false;
-        float autoGainValue = 1.0f;
-        float peakLevel = 0;
-        float beatSensitivity = 0.9f;
-        array<float, Constants::SamplingFrameSize> filterOut_{};
-        array<float, Constants::SamplingFrameSize / 2> fft_power{};
-        LpFilter& filter_;
-        FftProcessor& fftProcessor_;
-
-        size_t lo = 0;
-        size_t hi = 0;
-    };
-}
+    size_t lo_{0};
+    size_t hi_{0};
+};
+} // namespace SignalProcessing

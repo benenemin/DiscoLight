@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <cerrno>
 #include <tuple>
 #include <type_traits>
 

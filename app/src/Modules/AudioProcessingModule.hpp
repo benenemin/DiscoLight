@@ -4,69 +4,103 @@
 
 #pragma once
 
-#include "Utils/Logger.hpp"
-#include "SignalProcessing/BeatDetector.hpp"
-#include "arm_math.h"
-#include "Core/EventTypes.hpp"
+#include <cstddef>
 
-using namespace SignalProcessing;
+#include "arm_math.h"
+
+#include "Core/EventTypes.hpp"
+#include "SignalProcessing/SignalProcessingBase.hpp"
+#include "Utils/Logger.hpp"
+#include "Utils/MonotonicClock.hpp"
 
 namespace Modules
 {
     class AudioProcessingModule final
     {
     public:
-        AudioProcessingModule(AppPublisher& publisher, AppSubscriber& subscriber,
-                        SignalProcessingBase& signalProcessor, Logger& logger)
-            : logger_(logger), signalProcessor_(signalProcessor), publisher_(publisher), subscriber_(subscriber)
+        AudioProcessingModule(
+            Core::EventTypes::AppPublisher& publisher,
+            Core::EventTypes::AppSubscriber& subscriber,
+            SignalProcessing::SignalProcessingBase& signal_processor,
+            Utils::MonotonicClock& clock,
+            Utils::Logger& logger)
+            : publisher_(publisher),
+              subscriber_(subscriber),
+              signal_processor_(signal_processor),
+              clock_(clock),
+              logger_(logger)
         {
         }
 
         void Initialize()
         {
-            timing_init();
-            auto ret = signalProcessor_.Initialize();
+            logger_.info("Initializing audio processing module.");
+            const auto ret = signal_processor_.Initialize();
             if (ret != ARM_MATH_SUCCESS)
             {
-                this->logger_.error("FFT module could not be initialized: %d.", ret);
+                logger_.error("FFT module could not be initialized: %d.", ret);
+                initialized_ = false;
                 return;
             }
 
-            this->logger_.info("Processing module initialized.");
+            initialized_ = true;
+            logger_.info("Processing module initialized.");
         }
 
         void Start()
         {
-            timing_start();
-            subscriber_.Subscribe<Core::EventTypes::AudioFrame>([&](Core::EventTypes::AudioFrame& event)
+            if (!initialized_)
             {
-                Notify(event);
+                logger_.warning("Audio processing module is starting before successful initialization.");
+            }
+
+            const auto sub_ret = subscriber_.Subscribe<Core::EventTypes::AudioFrame>(
+                [this](Core::EventTypes::AudioFrame& event)
+            {
+                OnAudioFrame(event);
             });
-            this->logger_.info("Processing module started.");
+            if (sub_ret != 0)
+            {
+                logger_.error("Failed to subscribe to audio frames: %d", sub_ret);
+                return;
+            }
+            logger_.info("Audio processing module subscribed to audio frames.");
+            logger_.info("Processing module started.");
         }
 
-    protected:
-        void Notify(Core::EventTypes::AudioFrame& event)
+    private:
+        void OnAudioFrame(Core::EventTypes::AudioFrame& event)
         {
-            auto beat = this->signalProcessor_.Process(event.samples);
+            ++processed_frames_;
+            if (processed_frames_ % 100 == 0)
+            {
+                logger_.debug("Processed %d audio frames.", static_cast<int>(processed_frames_));
+            }
+
+            const auto beat = signal_processor_.Process(event.samples);
             if (!beat)
             {
                 return;
             }
-            auto beatEvent = Core::EventTypes::BeatEvent();
-            auto timestamp = Timestamp();
-            timestamp.nSec = timing_cycles_to_ns(timing_counter_get());
-            beatEvent.ts = timestamp;
-            if (const auto err = publisher_.Publish(beatEvent))
+
+            ++detected_beats_;
+            logger_.debug("Beat detected (count=%d).", static_cast<int>(detected_beats_));
+
+            Core::EventTypes::BeatEvent beat_event{};
+            beat_event.ts = clock_.Now();
+            if (const auto err = publisher_.Publish(beat_event))
             {
-                this->logger_.error("Error publishing beat event: %d", err);
+                logger_.error("Error publishing beat event: %d", err);
             }
         }
 
-        Logger& logger_;
-
-        SignalProcessingBase& signalProcessor_;
-        AppPublisher& publisher_;
-        AppSubscriber& subscriber_;
+        Core::EventTypes::AppPublisher& publisher_;
+        Core::EventTypes::AppSubscriber& subscriber_;
+        SignalProcessing::SignalProcessingBase& signal_processor_;
+        Utils::MonotonicClock& clock_;
+        Utils::Logger& logger_;
+        bool initialized_{false};
+        size_t processed_frames_{0};
+        size_t detected_beats_{0};
     };
-}
+} // namespace Modules

@@ -2,11 +2,13 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../modules/crypto/mbedtls" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../modules/hal/cmsis" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../modules/hal/cmsis_6" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../modules/hal/espressif" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../modules/hal/stm32" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../modules/lib/cmsis-dsp" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../modules/lib/cmsis-nn" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../zephyr" vcs="Git" />
   </component>
 </project>

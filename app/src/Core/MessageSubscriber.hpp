@@ -5,10 +5,12 @@
 
 #include <array>
 #include <cstddef>
+#include <functional>
 #include <tuple>
 #include <type_traits>
-#include <functional>   // <-- important
+#include <utility>
 
+#include "MessagePublisher.hpp"
 #include "ThreadWorker.hpp"
 #include "Utils/Detail.hpp"
 
@@ -35,23 +37,50 @@ namespace zbus_cpp
         MessageSubscriber(const MessageSubscriber&) = delete;
         MessageSubscriber& operator=(const MessageSubscriber&) = delete;
 
+        void AttachLogger(Utils::Logger& logger)
+        {
+            logger_ = &logger;
+        }
+
         void Initialize(int prio)
         {
-            this->prio = prio;
+            prio_ = prio;
+            if (logger_)
+            {
+                logger_->info("Message subscriber initialized with thread priority %d.", prio_);
+            }
         }
 
         void Start()
         {
-            if (running) return;
-            running = true;
+            if (running_)
+            {
+                if (logger_)
+                {
+                    logger_->warning("Message subscriber already running.");
+                }
+                return;
+            }
+            running_ = true;
+            if (logger_)
+            {
+                logger_->info("Starting message subscriber worker.");
+            }
 
             thread_worker_.Start([this]
             {
                 while (true)
                 {
-                    (void)DispatchOnce(K_FOREVER);
+                    const int rc = DispatchOnce(K_FOREVER);
+                    if (rc != 0 && rc != -ENOENT)
+                    {
+                        if (logger_)
+                        {
+                            logger_->warning("Message dispatch returned: %d", rc);
+                        }
+                    }
                 }
-            }, prio);
+            }, prio_);
         }
 
         /**
@@ -66,13 +95,18 @@ namespace zbus_cpp
             static_assert(is_configured_<MsgT>(),
                           "MsgT not configured in this MessageSubscriber");
 
-            // Must be callable as void(const MsgT&)
+            // Must be callable as void(MsgT&)
             static_assert(std::is_invocable_r_v<void, F, MsgT&>,
-                          "Handler must be callable as: void(const MsgT&)");
+                          "Handler must be callable as: void(MsgT&)");
 
             auto& slot = std::get<Slot<MsgT>>(slots_);
             slot.callback = std::function<void(MsgT&)>(std::forward<F>(f));
             slot.used = static_cast<bool>(slot.callback);
+            if (slot.used && logger_)
+            {
+                logger_->info("Registered subscriber callback for message size %d bytes.",
+                              static_cast<int>(sizeof(MsgT)));
+            }
             return slot.used ? 0 : -EINVAL;
         }
 
@@ -82,6 +116,11 @@ namespace zbus_cpp
             static_assert(is_configured_<MsgT>(),
                           "MsgT not configured in this MessageSubscriber");
             std::get<Slot<MsgT>>(slots_) = Slot<MsgT>{};
+            if (logger_)
+            {
+                logger_->info("Unregistered subscriber callback for message size %d bytes.",
+                              static_cast<int>(sizeof(MsgT)));
+            }
         }
 
         int DispatchOnce(k_timeout_t timeout = K_FOREVER) noexcept
@@ -162,8 +201,9 @@ namespace zbus_cpp
         }
 
         Utils::ThreadWorker& thread_worker_;
-        bool running = false;
-        int prio = 0;
+        bool running_ = false;
+        int prio_ = 0;
+        Utils::Logger* logger_{nullptr};
 
         const Observer* subscriber_{nullptr};
 
@@ -173,5 +213,4 @@ namespace zbus_cpp
         static constexpr std::size_t kMaxMsgSize = Detail::max_sizeof<MsgTs...>();
         std::array<std::byte, kMaxMsgSize> rx_buf_{};
     };
-}
-
+} // namespace zbus_cpp

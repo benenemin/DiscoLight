@@ -1,1 +1,1 @@
-FILE(GLOB ADC *.cpp)
+# ADC is currently header-only.

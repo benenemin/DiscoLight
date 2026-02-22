@@ -2,41 +2,39 @@
 // Created by bened on 07/10/2025.
 //
 #pragma once
-#include <array>
-#include <string>
 
+#include <array>
+#include <cstdint>
+
+#include "Constants.hpp"
 #include "MessagePublisher.hpp"
 #include "MessageSubscriber.hpp"
 #include "Utils/Button.hpp"
 #include "Utils/TimeStamp.hpp"
 
-using namespace std;
-using namespace Utils::TimeStamp;
-
 namespace Core::EventTypes
 {
     struct BaseEvent
     {
-        Timestamp ts;
+        Utils::TimeStamp::Timestamp ts;
     };
-
 
     struct AudioFrame : BaseEvent
     {
-        Timestamp ts;
+        Utils::TimeStamp::Timestamp ts;
         int sample_rate_hz; // number of valid samples in 'samples'
-        array<float, Constants::SamplingFrameSize> samples; // mono PCM, 16-bit
+        std::array<float, Constants::SamplingFrameSize> samples; // mono PCM, 16-bit
     };
 
     struct ButtonEvent : BaseEvent
     {
-        Timestamp ts;
+        Utils::TimeStamp::Timestamp ts;
         UtilsButton::ButtonState state;
     };
 
     struct BeatEvent : BaseEvent
     {
-        array<bool, 2> bands; //beats in different frequency bands
+        std::array<bool, 2> bands; // beats in different frequency bands
     };
 
     enum class AnimCmdType : uint8_t { Next, Prev, SetIndex, SetName, Brightness };
@@ -80,4 +78,4 @@ namespace Core::EventTypes
     // 5) Final “app types” (use these everywhere; no template lists repeated)
     using AppPublisher = PublisherFrom<AppMessages>::type;
     using AppSubscriber = SubscriberFrom<AppMessages>::type;
-}
+} // namespace Core::EventTypes

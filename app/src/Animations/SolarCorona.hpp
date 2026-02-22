@@ -2,26 +2,27 @@
 // Created by bened on 09/12/2025.
 //
 
-// -----------------------------------------------------------------------------
-// SolarCorona
-//   Visual idea:
-//     * A warm base “disc” (amber/yellow) with slight rotating texture/grain.
-//     * Random short “flares/spicules” radiating both directions around a seed.
-//     * Beat -> strong brightness envelope + spawn a few hot flares.
-// -----------------------------------------------------------------------------
-class SolarCorona final : public Animations::IAnimation
+#pragma once
+
+#include <algorithm>
+#include <array>
+
+#include "Animations/IAnimation.hpp"
+#include "Utils/LedUtils.hpp"
+
+namespace Animations
+{
+class SolarCorona final : public IAnimation
 {
 public:
-    // Tunables (all 0..255 domain where applicable)
-    explicit SolarCorona(uint8_t base_hue = 32, // ~amber
-                         uint8_t base_sat = 240, // saturated
-                         uint8_t base_floor_v = 70, // dark floor
-                         uint8_t pulse_decay = 10, // per-frame decay
-                         uint8_t flicker_amount = 4, // random micro flicker
-                         uint8_t flare_decay = 14, // per-frame flare life drop
-                         uint8_t flare_max_radius = 4, // LED steps from center
-                         uint8_t flare_spawn_prob = 6 // 0..255 chance each frame
-    ) noexcept
+    explicit SolarCorona(uint8_t base_hue = 32,
+                         uint8_t base_sat = 240,
+                         uint8_t base_floor_v = 70,
+                         uint8_t pulse_decay = 10,
+                         uint8_t flicker_amount = 4,
+                         uint8_t flare_decay = 14,
+                         uint8_t flare_max_radius = 4,
+                         uint8_t flare_spawn_prob = 6) noexcept
         : hue_(base_hue),
           sat_(base_sat),
           floor_v_(base_floor_v),
@@ -31,109 +32,114 @@ public:
           flare_rmax_(flare_max_radius),
           spawn_prob_(flare_spawn_prob)
     {
-        // Seed a static texture (grain). Values in [160..255]
         for (size_t i = 0; i < Constants::ChainLength; ++i)
         {
-            const uint8_t r = static_cast<uint8_t>(160u + (rng_.next8() % 96u));
-            grain_[i] = r;
+            grain_[i] = static_cast<uint8_t>(160u + (rng_.next8() % 96u));
         }
-        // Pre-place a couple small flares so it’s alive from frame 1
-        spawn_flare_(/*hot=*/false);
-        spawn_flare_(/*hot=*/false);
+        SpawnFlare(false);
+        SpawnFlare(false);
     }
 
-    // --- Animation tick ---
-    void ProcessNextFrame(typename Animations::IAnimation::LedChain& leds) override
+    void ProcessNextFrame(LedChain& leds) override
     {
-        // 1) Base corona: warm hue + rotating grain + pulse envelope + micro-flicker
         const uint8_t core = static_cast<uint8_t>(floor_v_ + ((uint16_t(pulse_) * 170u) >> 8));
-        // map pulse→[floor..~240]
-        const uint8_t phase = phase_; // local copy for consistent frame
+        const uint8_t phase = phase_;
+
         for (size_t i = 0; i < Constants::ChainLength; ++i)
         {
-            const uint8_t g = grain_[(i + phase) % Constants::ChainLength]; // rotate the texture
-            uint8_t v = scale8(core, g); // texture-modulated brightness
-            if (flicker_) v = sadd8(v, rng_.uniform<uint8_t>(flicker_ + 1)); // tiny sparkle
-            leds[i] = hsv(hue_, sat_, v);
-        }
-
-        // 2) Draw active flares (additive over base)
-        for (auto& f : flares_)
-        {
-            if (!f.active) continue;
-            // center gets hottest/whitest; edges fade quickly
-            for (uint8_t d = 0; d <= f.radius; ++d)
+            const uint8_t grain = grain_[(i + phase) % Constants::ChainLength];
+            uint8_t value = LedUtil::scale8(core, grain);
+            if (flicker_ != 0)
             {
-                const uint8_t fall = falloff_(f.radius, d); // 0..255
-                const uint8_t val = scale8(f.life, fall); // 0..255
-                // Slight “white hot” core; edges stay colored
-                const uint8_t hot_boost = (d <= 1) ? (val / 3) : 0;
-                const led_rgb color_core = hsv(f.hue, sat_, val);
-                led_rgb color = color_core;
-                if (hot_boost)
-                {
-                    // add white to center to look hotter
-                    add_sat(color, led_rgb{hot_boost, hot_boost, hot_boost});
-                }
-                const size_t p1 = wrap_index<Constants::ChainLength>(int(f.pos) + d);
-                const size_t p2 = wrap_index<Constants::ChainLength>(int(f.pos) - d);
-                LedUtil::add_sat(leds[p1], color);
-                if (p2 != p1) LedUtil::add_sat(leds[p2], color);
+                value = LedUtil::sadd8(value, rng_.uniform<uint8_t>(flicker_ + 1));
             }
-            // decay life; retire if done
-            f.life = (f.life > flare_decay_) ? static_cast<uint8_t>(f.life - flare_decay_) : 0;
-            if (f.life == 0) f.active = 0;
+            leds[i] = LedUtil::hsv(hue_, sat_, value);
         }
 
-        // 3) Occasionally spawn a subtle background flare
-        if ((rng_.next8() & 0xFF) < spawn_prob_)
+        for (auto& flare : flares_)
         {
-            spawn_flare_(/*hot=*/false);
+            if (!flare.active)
+            {
+                continue;
+            }
+
+            for (uint8_t dist = 0; dist <= flare.radius; ++dist)
+            {
+                const uint8_t fall = Falloff(flare.radius, dist);
+                const uint8_t value = LedUtil::scale8(flare.life, fall);
+                const uint8_t hot_boost = (dist <= 1) ? (value / 3) : 0;
+
+                led_rgb color = LedUtil::hsv(flare.hue, sat_, value);
+                if (hot_boost != 0)
+                {
+                    LedUtil::add_sat(color, led_rgb{hot_boost, hot_boost, hot_boost});
+                }
+
+                const size_t p1 = LedUtil::wrap_index<Constants::ChainLength>(int(flare.pos) + dist);
+                const size_t p2 = LedUtil::wrap_index<Constants::ChainLength>(int(flare.pos) - dist);
+                LedUtil::add_sat(leds[p1], color);
+                if (p1 != p2)
+                {
+                    LedUtil::add_sat(leds[p2], color);
+                }
+            }
+
+            flare.life =
+                (flare.life > flare_decay_) ? static_cast<uint8_t>(flare.life - flare_decay_) : 0;
+            if (flare.life == 0)
+            {
+                flare.active = 0;
+            }
         }
 
-        // 4) Evolve base state
-        if (pulse_ > pulse_decay_) pulse_ = static_cast<uint8_t>(pulse_ - pulse_decay_);
-        else pulse_ = 0;
-        hue_ = static_cast<uint8_t>(hue_ + 1); // slow color drift
-        phase_ = static_cast<uint8_t>(phase_ + 1); // rotate grain
+        if (rng_.next8() < spawn_prob_)
+        {
+            SpawnFlare(false);
+        }
+
+        pulse_ = (pulse_ > pulse_decay_) ? static_cast<uint8_t>(pulse_ - pulse_decay_) : 0;
+        hue_ = static_cast<uint8_t>(hue_ + 1);
+        phase_ = static_cast<uint8_t>(phase_ + 1);
     }
 
-    // --- Beat hook ---
     void ProcessNextBeat() override
     {
-        // Boost pulse envelope and hue; spawn 2–3 hot flares
         pulse_ = 255;
         hue_ = static_cast<uint8_t>(hue_ + 6);
-        const uint8_t n = static_cast<uint8_t>(2 + (rng_.next8() % 2));
-        for (uint8_t i = 0; i < n; ++i) spawn_flare_(/*hot=*/true);
+        const uint8_t count = static_cast<uint8_t>(2 + (rng_.next8() % 2));
+        for (uint8_t i = 0; i < count; ++i)
+        {
+            SpawnFlare(true);
+        }
     }
 
 private:
-    // One flare record
     struct Flare
     {
         uint8_t active{0};
-        uint8_t pos{0}; // LED index
-        uint8_t radius{0}; // in LEDs
-        uint8_t life{0}; // brightness 0..255
-        uint8_t hue{0}; // near the base hue
+        uint8_t pos{0};
+        uint8_t radius{0};
+        uint8_t life{0};
+        uint8_t hue{0};
     };
 
     static constexpr uint8_t kMaxFlares = 8;
 
-    // Quadratic-ish falloff (center 255 → edge 0)
-    static uint8_t falloff_(uint8_t radius, uint8_t dist) noexcept
+    static uint8_t Falloff(uint8_t radius, uint8_t dist) noexcept
     {
-        if (dist >= radius) return (radius ? 0u : 255u);
-        const uint16_t t = static_cast<uint16_t>(255u * dist / (radius ? radius : 1u));
+        if (dist >= radius)
+        {
+            return radius != 0 ? 0u : 255u;
+        }
+
+        const uint16_t t = static_cast<uint16_t>(255u * dist / (radius == 0 ? 1u : radius));
         const uint16_t t2 = static_cast<uint16_t>((t * t + 127u) / 255u);
-        const int val = 255 - static_cast<int>(t2);
-        return static_cast<uint8_t>(val < 0 ? 0 : val);
+        const int value = 255 - static_cast<int>(t2);
+        return static_cast<uint8_t>(value < 0 ? 0 : value);
     }
 
-    void spawn_flare_(bool hot) noexcept
+    void SpawnFlare(bool hot) noexcept
     {
-        // Find a slot (free or the weakest one)
         uint8_t idx = 0xFF;
         uint8_t weakest = 255;
         for (uint8_t i = 0; i < kMaxFlares; ++i)
@@ -149,30 +155,29 @@ private:
                 idx = i;
             }
         }
-        auto& f = flares_[idx];
-        f.active = 1;
-        f.pos = rng_.uniform<uint8_t>(Constants::ChainLength);
-        f.radius = static_cast<uint8_t>(1 + (rng_.next8() % (std::max<uint8_t>(1, flare_rmax_))));
-        f.life = static_cast<uint8_t>(hot ? 255 : (180 + (rng_.next8() % 60)));
-        // Slight hue jitter around current base hue; hot flares are a bit whiter (smaller saturation effect comes from white boost)
-        f.hue = static_cast<uint8_t>(hue_ + (rng_.next8() % 8));
+
+        auto& flare = flares_[idx];
+        flare.active = 1;
+        flare.pos = rng_.uniform<uint8_t>(Constants::ChainLength);
+        flare.radius =
+            static_cast<uint8_t>(1 + (rng_.next8() % (std::max<uint8_t>(1, flare_rmax_))));
+        flare.life = static_cast<uint8_t>(hot ? 255 : (180 + (rng_.next8() % 60)));
+        flare.hue = static_cast<uint8_t>(hue_ + (rng_.next8() % 8));
     }
 
-    // ---- State ----
     uint8_t hue_{32};
     uint8_t sat_{240};
     uint8_t floor_v_{70};
-
     uint8_t pulse_{0};
     uint8_t pulse_decay_{6};
     uint8_t flicker_{4};
-
     uint8_t flare_decay_{14};
     uint8_t flare_rmax_{4};
-    uint8_t spawn_prob_{6}; // 0..255
+    uint8_t spawn_prob_{6};
+    uint8_t phase_{0};
 
-    uint8_t phase_{0}; // rotates the grain pattern
-    std::array<uint8_t, Constants::ChainLength> grain_{}; // static texture
+    std::array<uint8_t, Constants::ChainLength> grain_{};
     Flare flares_[kMaxFlares]{};
-    XorShift32 rng_{0xD1E5F00Du};
+    LedUtil::XorShift32 rng_{0xD1E5F00Du};
 };
+} // namespace Animations

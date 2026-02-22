@@ -1,1 +1,1 @@
-FILE(GLOB Threads *.cpp)
+# Modules are currently header-only.

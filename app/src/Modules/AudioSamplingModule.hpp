@@ -4,45 +4,67 @@
 
 #pragma once
 
-#include "Modules/ModuleBase.hpp"
+#include <cstddef>
+
 #include "ADC/AdcReader.hpp"
 #include "Core/EventTypes.hpp"
 
 namespace Modules
 {
-    class AudioSamplingModule final : ModuleBase
+    class AudioSamplingModule final
     {
     public:
-        explicit AudioSamplingModule(Adc::AdcReader& reader, AppPublisher& publisher, AppSubscriber &subscriber,
-                               Logger& logger)
-            : ModuleBase(publisher, subscriber), reader_(reader), logger_(logger)
+        explicit AudioSamplingModule(
+            Adc::AdcReader& reader,
+            Core::EventTypes::AppPublisher& publisher,
+            Utils::Logger& logger)
+            : reader_(reader), publisher_(publisher), logger_(logger)
         {
         }
 
         void Initialize()
         {
-            this->reader_.Initialize(Constants::SamplingInterval_us);
-            ModuleBase::Initialize();
+            logger_.info("Initializing audio sampling module.");
+            const auto ret = reader_.Initialize(Constants::SamplingInterval_us);
+            if (ret != 0)
+            {
+                logger_.error("Audio sampling module initialization failed: %d", ret);
+                return;
+            }
+
+            logger_.info("Audio sampling module initialized.");
         }
 
-        void Start() const
+        void Start()
         {
-            this->reader_.Start([this](const int sample_rate_hz, const array<float, Constants::SamplingFrameSize>& frame)
+            logger_.info("Starting audio sampling module.");
+            reader_.Start([this](const int sample_rate_hz,
+                                 const std::array<float, Constants::SamplingFrameSize>& frame)
             {
-                audioFrame.sample_rate_hz = sample_rate_hz;
-                audioFrame.samples = frame;
+                audio_frame_.sample_rate_hz = sample_rate_hz;
+                audio_frame_.samples = frame;
 
-                if (const auto err = publisher_.Publish(audioFrame))
+                if (const auto err = publisher_.Publish(audio_frame_))
                 {
-                    this->logger_.error("failed to publish audio frame: %d", err);
+                    logger_.error("failed to publish audio frame: %d", err);
+                    return;
+                }
+
+                ++published_frames_;
+                if (published_frames_ % 100 == 0)
+                {
+                    logger_.debug("Published %d audio frames.", static_cast<int>(published_frames_));
                 }
             });
 
-            this->logger_.info("Audio sampling module started.");
+            logger_.info("Audio sampling module started.");
         }
 
+    private:
         Adc::AdcReader& reader_;
-        inline static Core::EventTypes::AudioFrame audioFrame{};
-        Logger& logger_;
+        Core::EventTypes::AppPublisher& publisher_;
+        Core::EventTypes::AudioFrame audio_frame_{};
+        Utils::Logger& logger_;
+        size_t published_frames_{0};
     };
-}
+} // namespace Modules

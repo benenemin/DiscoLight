@@ -3,13 +3,10 @@
 //
 
 #pragma once
-#include <array>
-#include <cstddef>
+#include <zephyr/kernel.h>
 
-#include "zephyr/kernel.h"
-#include "zephyr/sys/printk.h"
-
-namespace Utils {
+namespace Utils
+{
 
     /**
      * C++ wrapper around Zephyr logging that keeps LOG_* in the .cpp only.
@@ -23,9 +20,12 @@ namespace Utils {
      *   - Change module name/level at compile time:
      *       -DAPP_LOGGER_MODULE=myapp -DAPP_LOGGER_LEVEL=LOG_LEVEL_INF
      */
-    class Logger {
+    class Logger
+    {
     public:
-        explicit Logger(const char* tag = nullptr)  : tag_(tag) {}
+        explicit Logger(const char* tag = nullptr) : tag_(tag)
+        {
+        }
 
         // printf-style APIs (thread context). Safe: formats into a fixed buffer.
         void debug(const char* fmt, ...) const;
@@ -37,5 +37,4 @@ namespace Utils {
         const char* tag_{nullptr};
     };
 
-} // namespace util
-
+} // namespace Utils

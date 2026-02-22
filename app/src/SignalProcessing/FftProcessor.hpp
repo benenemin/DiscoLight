@@ -4,11 +4,14 @@
 
 #pragma once
 
+#include <array>
+
 #include "arm_math.h"
+#include "Constants.hpp"
 
 namespace SignalProcessing
 {
-    class FftProcessor
+    class FftProcessor final
     {
     public:
         FftProcessor()
@@ -20,8 +23,8 @@ namespace SignalProcessing
             return arm_rfft_fast_init_f32(&this->rFFT_, Constants::SamplingFrameSize);
         }
 
-        void Process(array<float, Constants::SamplingFrameSize>& input,
-                     array<float, Constants::SamplingFrameSize / 2>& output)
+        void Process(std::array<float, Constants::SamplingFrameSize>& input,
+                     std::array<float, Constants::SamplingFrameSize / 2>& output)
         {
             arm_rfft_fast_f32(&this->rFFT_, input.data(), this->buffer.data(), 0);
             arm_cmplx_mag_f32(this->buffer.data(), output.data(), output.size());
@@ -34,6 +37,6 @@ namespace SignalProcessing
 
     private:
         arm_rfft_fast_instance_f32 rFFT_{};
-        array<float, Constants::SamplingFrameSize> buffer{};
+        std::array<float, Constants::SamplingFrameSize> buffer{};
     };
-}
+} // namespace SignalProcessing

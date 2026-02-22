@@ -1,1 +1,1 @@
-FILE(GLOB core *.cpp)
+# Core is currently header-only.

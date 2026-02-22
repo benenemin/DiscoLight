@@ -4,46 +4,58 @@
 
 #pragma once
 
+#include <zephyr/drivers/gpio.h>
+
+#include "Utils/Logger.hpp"
+
 namespace Visualization
 {
-class LedControl
-{
-public:
-    explicit LedControl(gpio_dt_spec *gpio, Logger& logger)
-        :gpio(gpio), active(false), logger_(logger)
+class LedControl final
     {
-        if (!gpio_is_ready_dt(gpio))
+    public:
+        explicit LedControl(gpio_dt_spec* gpio, Utils::Logger& logger)
+            : gpio_(gpio), active_(false), logger_(logger)
         {
-            this->logger_.error("Gpio initialization failed.");
+            if (!gpio_is_ready_dt(gpio))
+            {
+                logger_.error("Gpio initialization failed.");
+            }
+
+            const auto ret = gpio_pin_configure_dt(gpio, GPIO_OUTPUT);
+            if (ret != 0)
+            {
+                logger_.error("Gpio configuration failed: %d.", ret);
+            }
+
+            logger_.info("Signal LED initialized.");
         }
 
-        const auto ret = gpio_pin_configure_dt(gpio, GPIO_OUTPUT);
-        if (ret != 0)
+        void Set(const bool active)
         {
-            this->logger_.error("Gpio configuration failed: %d.", ret);
-        }
-    }
+            if (active_ == active)
+            {
+                return;
+            }
 
-    void Set(const bool active)
-    {
-        const auto ret = gpio_pin_set_dt(gpio, !active);
-        if (ret != 0)
+            const auto ret = gpio_pin_set_dt(gpio_, !active);
+            if (ret != 0)
+            {
+                logger_.error("Gpio control failed: %d.", ret);
+                return;
+            }
+
+            active_ = active;
+            logger_.debug("Signal LED set to %s.", active_ ? "on" : "off");
+        }
+
+        void Toggle()
         {
-            this->logger_.error("Gpio control failed: %d.", ret);
+            Set(!active_);
         }
 
-        this->active = active;
-    }
-
-    void Toggle()
-    {
-        this->active = !this->active;
-        Set(active);
-    }
-
-private:
-    gpio_dt_spec *gpio;
-    bool active;
-    Logger& logger_;
-};
-}
+    private:
+        gpio_dt_spec* gpio_;
+        bool active_;
+        Utils::Logger& logger_;
+    };
+} // namespace Visualization

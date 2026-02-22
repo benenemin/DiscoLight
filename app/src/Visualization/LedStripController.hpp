@@ -4,38 +4,53 @@
 
 #pragma once
 
+#include <array>
+
 #include <zephyr/device.h>
 #include <zephyr/drivers/led_strip.h>
 
+#include "Constants.hpp"
+#include "Utils/Logger.hpp"
+
 namespace Visualization
 {
-    class LedStripController
+    class LedStripController final
     {
     public:
-        typedef array<led_rgb, Constants::ChainLength> ledChain;
+        using LedChain = std::array<led_rgb, Constants::ChainLength>;
 
-        LedStripController(const device* ledStrip, Logger& logger)
+        LedStripController(const device* ledStrip, Utils::Logger& logger)
             : logger_(logger), led_strip_(ledStrip)
         {
         }
 
         void Initialize() const
         {
+            if (led_strip_ == nullptr)
+            {
+                this->logger_.error("Led strip device pointer is null.");
+                return;
+            }
+
             const auto ret = device_is_ready(led_strip_);
             if (ret != 0)
             {
                 this->logger_.error("Led strip initialization failed: %d.", ret);
+                return;
             }
+
+            this->logger_.info("Led strip initialized.");
         }
 
-        ledChain* GetLeds()
+        LedChain* GetLeds()
         {
             return &leds_;
         }
 
         void Clear()
         {
-            for (auto led : leds_)
+            logger_.info("Clearing LED strip.");
+            for (auto& led : leds_)
             {
                 SetLedColor(led, 0, 0, 0);
             }
@@ -44,6 +59,7 @@ namespace Visualization
 
         void FlashColor(const uint8_t red, const uint8_t green, const uint8_t blue)
         {
+            logger_.debug("Flashing LED strip with RGB(%d, %d, %d).", red, green, blue);
             for (size_t i = 0; i < leds_.size(); ++i)
             {
                 SetLedColor(leds_[i], red, green, blue);
@@ -68,8 +84,8 @@ namespace Visualization
             led.b = blue;
         }
 
-        Logger& logger_;
+        Utils::Logger& logger_;
         const device* led_strip_;
-        ledChain leds_{};
+        LedChain leds_{};
     };
-}
+} // namespace Visualization

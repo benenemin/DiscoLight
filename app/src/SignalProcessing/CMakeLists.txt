@@ -1,1 +1,1 @@
-FILE(GLOB signal_processing *.cpp)
+# Signal processing is currently header-only.

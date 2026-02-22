@@ -1,1 +1,1 @@
-FILE(GLOB animations *.cpp)
+# Animations are currently header-only.

@@ -5,120 +5,140 @@
 #pragma once
 
 #include <array>
+#include <functional>
+
 #include <dsp/fast_math_functions.h>
 #include <dsp/statistics_functions.h>
+#include <zephyr/drivers/adc.h>
+#include <zephyr/kernel.h>
 
+#include "Constants.hpp"
 #include "Utils/Logger.hpp"
 #include "Utils/PeriodicTimer.hpp"
-#include "zephyr/kernel.h"
-#include "zephyr/drivers/adc.h"
-#include "zephyr/timing/timing.h"
-
-using namespace std;
-using namespace Utils;
 
 namespace Adc
 {
-    class AdcReader
+class AdcReader final
+{
+public:
+    using NotifyFrameReady =
+        std::function<void(int sample_rate_hz,
+                           const std::array<float, Constants::SamplingFrameSize>& frame)>;
+
+    explicit AdcReader(const adc_dt_spec* spec, Utils::PeriodicTimer& timer, Utils::Logger& logger)
+        : spec_(spec), timer_(timer), logger_(logger)
     {
-    public:
-        using NotifyFrameReady = function<void(int sampleRate_hz, array<float, Constants::SamplingFrameSize>& out)>;
+        sequence_ = {
+            .buffer = &sample_buffer_,
+            .buffer_size = sizeof(sample_buffer_),
+        };
+    }
 
-        explicit AdcReader(const adc_dt_spec* spec, PeriodicTimer& timer, Logger& logger)
-            : _spec(spec), _timer(timer), logger_(logger)
+    int Initialize(const int interval_us)
+    {
+        sample_interval_us_ = interval_us;
+        sample_rate_hz_ = (1'000'000 + interval_us / 2) / interval_us;
+        logger_.info("Initializing ADC reader (interval=%d us, sample_rate=%d Hz).",
+                     sample_interval_us_, sample_rate_hz_);
+
+        k_mutex_init(&mutex_);
+        const int setup_result = adc_channel_setup_dt(spec_);
+        adc_sequence_init_dt(spec_, &sequence_);
+        if (setup_result != 0)
         {
-            this->_sequence = {
-                .buffer = &this->_sample_buffer,
-                .buffer_size = sizeof(this->_sample_buffer)
-            };
+            logger_.error("Adc initialization failed with error: %d.", setup_result);
+            return setup_result;
         }
 
-        int Initialize(const int interval_us)
-        {
-            this->sampleInterval_us = interval_us;
-            this->sampleRate_hz = (1'000'000 + interval_us / 2) / interval_us;
+        timer_.init([this] { ReadSample(); });
+        logger_.info("Adc initialized.");
+        return 0;
+    }
 
-            k_mutex_init(&this->_mutex);
-            const auto res = adc_channel_setup_dt(this->_spec);
-            adc_sequence_init_dt(this->_spec, &this->_sequence);
-            if (res != 0)
+    void Start(const NotifyFrameReady& notify)
+    {
+        notify_frame_ready_ = notify;
+        if (!notify_frame_ready_)
+        {
+            logger_.warning("ADC reader started without a frame callback.");
+        }
+        timer_.start(sample_interval_us_);
+        logger_.info("Adc started (interval=%d us).", sample_interval_us_);
+    }
+
+private:
+    void ReadFrame()
+    {
+        arm_mean_f32(frame_.data(), frame_.size(), &offset_);
+
+        k_mutex_lock(&mutex_, K_FOREVER);
+        if (notify_frame_ready_)
+        {
+            notify_frame_ready_(sample_rate_hz_, frame_);
+            ++frames_emitted_;
+            if (frames_emitted_ % 100 == 0)
             {
-                this->logger_.error("Adc initialization failed with error: %d.", res);
-                return res;
+                logger_.debug("Published %d ADC frames.", static_cast<int>(frames_emitted_));
             }
-
-            this->_timer.init([this] { ReadSample(); });
-
-            timing_init();
-
-            this->logger_.info("Adc initialized.");
-            return res;
         }
+        k_mutex_unlock(&mutex_);
+    }
 
-        void Start(const NotifyFrameReady& notify)
+    void ReadSample()
+    {
+        if (sample_count_ >= frame_.size())
         {
-            this->_notifyFrameReady = notify;
-            this->_timer.start(this->sampleInterval_us);
-            timing_start();
-            this->logger_.info("Adc started.");
+            ReadFrame();
+            sample_count_ = 0;
         }
 
-        void ReadFrame()
+        const int read_result = adc_read_dt(spec_, &sequence_);
+        if (read_result != 0)
         {
-            arm_mean_f32(this->_frame.data(), this->_frame.size(), &this->offset_);
-
-            k_mutex_lock(&this->_mutex, K_FOREVER);
-            this->_notifyFrameReady(this->sampleRate_hz, this->_frame);
-            k_mutex_unlock(&this->_mutex);
+            logger_.error("ADC reading failed with error: %d.", read_result);
+            return;
         }
 
-    private:
-        void ReadSample()
+        int value_uv = static_cast<int>(sample_buffer_);
+        const int conv_result = adc_raw_to_microvolts_dt(spec_, &value_uv);
+        if (conv_result != 0)
         {
-            // auto now = timing_counter_get();
-            // this->logger_.info("sample time: %d", timing_cycles_to_ns(timing_cycles_get(&this->_timing, &now)));
-            // this->_timing = now;
-
-            if (this->_sample_count >= _frame.size())
-            {
-                ReadFrame();
-                this->_sample_count = 0;
-            }
-
-            auto value = static_cast<int>(_sample_buffer);
-            if (adc_read_dt(this->_spec, &this->_sequence) < 0)
-            {
-                logger_.error("ADC reading failed with error: %d.", value);
-            }
-
-            if (adc_raw_to_microvolts_dt(this->_spec, &value) < 0)
-            {
-                logger_.error("value in mV not available: %d.", value);
-            }
-
-            k_mutex_lock(&this->_mutex, K_NO_WAIT);
-            this->_frame[this->_sample_count] = value / 1'000'000 - this->offset_;
-            k_mutex_unlock(&this->_mutex);
-
-            ++this->_sample_count;
+            logger_.error("value in mV not available: %d.", conv_result);
+            return;
         }
 
-        const adc_dt_spec* _spec;
-        PeriodicTimer& _timer;
-        Logger& logger_;
+        if (k_mutex_lock(&mutex_, K_NO_WAIT) == 0)
+        {
+            frame_[sample_count_] = value_uv / 1'000'000.0f - offset_;
+            k_mutex_unlock(&mutex_);
+        }
+        else
+        {
+            ++dropped_samples_;
+            if (dropped_samples_ % 256 == 0)
+            {
+                logger_.warning("Dropped %d ADC samples because frame buffer was busy.",
+                                static_cast<int>(dropped_samples_));
+            }
+        }
 
-        NotifyFrameReady _notifyFrameReady{};
-        adc_sequence _sequence{};
-        uint16_t _sample_buffer{};
-        size_t _sample_count{};
-        adc_sequence_options _sequence_options{};
-        array<float, Constants::SamplingFrameSize> _frame{};
-        k_mutex _mutex{};
-        int sampleInterval_us{};
-        int sampleRate_hz{};
+        ++sample_count_;
+    }
 
-        bool calibrated{false};
-        float offset_ = 0;
-        timing_t _timing{};
-    };
-}
+    const adc_dt_spec* spec_;
+    Utils::PeriodicTimer& timer_;
+    Utils::Logger& logger_;
+
+    NotifyFrameReady notify_frame_ready_{};
+    adc_sequence sequence_{};
+    uint16_t sample_buffer_{};
+    size_t sample_count_{};
+    std::array<float, Constants::SamplingFrameSize> frame_{};
+    k_mutex mutex_{};
+    int sample_interval_us_{};
+    int sample_rate_hz_{};
+    float offset_{0.0f};
+    size_t frames_emitted_{0};
+    size_t dropped_samples_{0};
+};
+} // namespace Adc

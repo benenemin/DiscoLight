@@ -4,51 +4,49 @@
 
 #pragma once
 
+#include "Animations/IAnimation.hpp"
 #include "Utils/LedUtils.hpp"
-#include "zephyr/drivers/led_strip.h"
 
-using namespace LedUtil;
-
-class BeatPulse final : public Animations::IAnimation
+namespace Animations
+{
+class BeatPulse final : public IAnimation
 {
 public:
-    // color in HSV; hue animates slowly, v is controlled by pulse level
-    explicit BeatPulse(uint8_t hue0 = 0, uint8_t sat = 255,
-                       uint8_t decay = 5, uint8_t hue_step = 1)
+    explicit BeatPulse(uint8_t hue0 = 0, uint8_t sat = 255, uint8_t decay = 5, uint8_t hue_step = 1)
         : hue_(hue0), sat_(sat), decay_(decay), hue_step_(hue_step)
     {
     }
 
-    typedef array<led_rgb, Constants::ChainLength> ledChain;
-    void ProcessNextFrame(typename Animations::IAnimation::LedChain &leds) override
+    void ProcessNextFrame(LedChain& leds) override
     {
-        // decay pulse level
-        if (level_ > decay_) level_ -= decay_;
-        else level_ = 0;
-
-        const uint8_t v = level_; // 0..255
-        const led_rgb c = hsv(hue_, sat_, v);
-
-        for (auto& px : leds)
+        if (level_ > decay_)
         {
-            // overwrite (or use add_sat for additive flare)
-            px = c;
+            level_ -= decay_;
+        }
+        else
+        {
+            level_ = 0;
         }
 
-        // slow hue drift
+        const led_rgb color = LedUtil::hsv(hue_, sat_, level_);
+        for (auto& px : leds)
+        {
+            px = color;
+        }
         hue_ += hue_step_;
     }
 
     void ProcessNextBeat() override
     {
-        // kick pulse; clamp to 255
         level_ = 255;
-        hue_ += 8; // small hue jump per beat
+        hue_ += 8;
     }
 
 private:
-    uint8_t hue_ = 0, sat_ = 255;
-    uint8_t level_ = 0; // brightness level (0..255)
-    uint8_t decay_ = 8; // per-frame decay
-    uint8_t hue_step_ = 1; // per-frame hue drift
+    uint8_t hue_{0};
+    uint8_t sat_{255};
+    uint8_t level_{0};
+    uint8_t decay_{8};
+    uint8_t hue_step_{1};
 };
+} // namespace Animations

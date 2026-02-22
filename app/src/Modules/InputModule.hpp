@@ -2,45 +2,65 @@
 // Created by bened on 07/12/2025.
 //
 #pragma once
+
+#include "Core/EventTypes.hpp"
 #include "Utils/Button.hpp"
+#include "Utils/Logger.hpp"
+#include "Utils/MonotonicClock.hpp"
 
 namespace Modules
 {
-    class InputModule
+    class InputModule final
     {
     public:
-        explicit InputModule(AppPublisher& publisher, UtilsButton::Button& button,
-                                   Logger& logger)
-            : button_(button), logger_(logger), publisher_(publisher)
+        explicit InputModule(
+            Core::EventTypes::AppPublisher& publisher,
+            UtilsButton::Button& button,
+            Utils::MonotonicClock& clock,
+            Utils::Logger& logger)
+            : publisher_(publisher), button_(button), clock_(clock), logger_(logger)
         {
+            button_.AttachLogger(logger_);
         }
 
-        int Initialize() const
+        int Initialize()
         {
-            timing_init();
-            timing_start();
-            const auto ret = this->button_.Initialize([this](const UtilsButton::ButtonState evt)
+            logger_.info("Initializing button input module.");
+            const auto ret = button_.Initialize([this](const UtilsButton::ButtonState state)
             {
-                logger_.info("button pressed: %d", evt);
-                auto buttonEvent = Core::EventTypes::ButtonEvent();
-                auto timestamp = Timestamp();
-                timestamp.nSec = timing_cycles_to_ns(timing_counter_get());
-
-                buttonEvent.ts = timestamp;
-                buttonEvent.state = evt;
-                if (const auto err = publisher_.Publish(buttonEvent))
-                {
-                    logger_.error("publishing error: %d", err);
-                }
+                OnButtonEvent(state);
             });
 
-            logger_.info("ButtonInputThread Initialized");
+            if (ret != 0)
+            {
+                logger_.error("Button input module initialization failed: %d", ret);
+                return ret;
+            }
+
+            logger_.info("Button input module initialized.");
             return ret;
         }
 
     private:
+        void OnButtonEvent(UtilsButton::ButtonState state)
+        {
+            logger_.info("Button event received: %d", state);
+
+            Core::EventTypes::ButtonEvent button_event{};
+            button_event.ts = clock_.Now();
+            button_event.state = state;
+            if (const auto err = publisher_.Publish(button_event))
+            {
+                logger_.error("publishing error: %d", err);
+                return;
+            }
+
+            logger_.debug("Button event published.");
+        }
+
+        Core::EventTypes::AppPublisher& publisher_;
         UtilsButton::Button& button_;
-        Logger& logger_;
-        AppPublisher& publisher_;
+        Utils::MonotonicClock& clock_;
+        Utils::Logger& logger_;
     };
-};
+} // namespace Modules

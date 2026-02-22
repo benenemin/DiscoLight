@@ -2,6 +2,9 @@
 // Created by bened on 11/11/2025.
 //
 #pragma once
+
+#include <array>
+
 #include "zephyr/drivers/led_strip.h"
 
 namespace LedUtil
@@ -93,4 +96,4 @@ namespace LedUtil
         int r = i % m;
         return static_cast<size_t>(r < 0 ? r + m : r);
     }
-}
+} // namespace LedUtil

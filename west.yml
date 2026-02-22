@@ -27,7 +27,3 @@ manifest:
           - cmsis
           - mbedtls
 
-    - name: esp-dsp
-      remote: espressif
-      path: example-application/lib/esp-dsp/modules
-

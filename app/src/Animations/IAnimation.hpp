@@ -4,18 +4,21 @@
 
 #pragma once
 
+#include <array>
 
-struct led_rgb;
+#include <zephyr/drivers/led_strip.h>
+
+#include "Constants.hpp"
 
 namespace Animations
 {
-  class IAnimation
-  {
+class IAnimation
+{
     public:
     virtual ~IAnimation() = default;
 
-    using LedChain = array<led_rgb, Constants::ChainLength>;
+    using LedChain = std::array<led_rgb, Constants::ChainLength>;
     virtual void ProcessNextFrame(LedChain& leds) = 0;
     virtual void ProcessNextBeat() = 0;
-  };
-}
+};
+} // namespace Animations

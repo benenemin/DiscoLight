@@ -1,1 +1,1 @@
-FILE(GLOB visualization *.cpp)
+# Visualization is currently header-only.
