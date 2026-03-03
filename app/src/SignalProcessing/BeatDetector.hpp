@@ -50,6 +50,7 @@ public:
 
         // Keep current auto-gain behavior.
         UpdateAutoGain(band_energy);
+        UpdateSignalLevels(samples);
         return DetectBeat(band_energy);
     }
 
@@ -74,11 +75,38 @@ private:
         }
         beat_variance_ /= kHistorySize;
 
+        if (!HasSignalActivity())
+        {
+            is_beat_ = false;
+            was_beat_ = false;
+            return false;
+        }
+
         const auto threshold = beat_average_ + (beat_sensitivity_ * std::sqrt(beat_variance_));
-        is_beat_ = energy > threshold && energy > 0.01f;
+        is_beat_ = energy > threshold;
         const bool beat = is_beat_ && !was_beat_;
         was_beat_ = is_beat_;
         return beat;
+    }
+
+    void UpdateSignalLevels(const std::array<float, Constants::SamplingFrameSize>& samples)
+    {
+        float rms = 0.0f;
+        arm_rms_f32(samples.data(), samples.size(), &rms);
+        rms_level_ = rms_level_ * 0.9f + rms * 0.1f;
+
+        float peak = 0.0f;
+        for (size_t i = 0; i < Constants::SamplingFrameSize; ++i)
+        {
+            peak = std::max(peak, std::fabs(samples[i]));
+        }
+
+        peak_level_ = peak_level_ * 0.9f + peak * 0.1f;
+    }
+
+    [[nodiscard]] bool HasSignalActivity() const
+    {
+        return peak_level_ > kMinPeakLevel || rms_level_ > kMinRmsLevel;
     }
 
     void UpdateAutoGain(const float level)
@@ -103,7 +131,11 @@ private:
     bool is_beat_{false};
     bool was_beat_{false};
     float auto_gain_value_{1.0f};
+    float rms_level_{0.0f};
+    float peak_level_{0.0f};
     float beat_sensitivity_{0.9f};
+    static constexpr float kMinPeakLevel = 0.001f; // ~1 mV in the current ADC-to-volts path
+    static constexpr float kMinRmsLevel = 0.0002f;
 
     std::array<float, Constants::SamplingFrameSize> filter_output_{};
     std::array<float, Constants::SamplingFrameSize / 2> fft_power_{};
