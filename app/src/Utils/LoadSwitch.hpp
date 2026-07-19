@@ -56,6 +56,6 @@ namespace Utils
         gpio_dt_spec* load_switch_spec_;
         Logger& logger_;
 
-        bool closed = false;
+        bool closed = true;
     };
 };

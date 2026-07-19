@@ -34,7 +34,10 @@
 	leds {
 		compatible = "gpio-leds";
 		sigled: sig_led {
-			gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
+		};
+		loadswitch: load_switch {
+			gpios = <&gpio0 9 GPIO_ACTIVE_HIGH>;
 		};
 	};
 
@@ -46,10 +49,10 @@
 		};
 	};
 
-	load_switch: load_switch {
-		compatible = "power-switch";
-		gpios = <&gpio0 9 GPIO_ACTIVE_HIGH>;
-	};
+	// load_switch: load_switch {
+	// 	compatible = "power-switch";
+	// 	gpios = <&gpio0 9 GPIO_ACTIVE_HIGH>;
+	// };
 };
 
 //&adc0 {

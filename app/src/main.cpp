@@ -51,7 +51,11 @@ static constexpr adc_dt_spec adc_channels[] = {
 static const device* const strip = DEVICE_DT_GET(STRIP_NODE);
 static gpio_dt_spec ctrlButton = GPIO_DT_SPEC_GET(CTRL_BTN_NODE, gpios);
 static gpio_dt_spec signalLed= GPIO_DT_SPEC_GET(DT_NODELABEL(sigled), gpios);
-static gpio_dt_spec loadSwitch = GPIO_DT_SPEC_GET_OR(DT_NODELABEL(load_switch), gpios, {0});
+
+#if !DT_NODE_EXISTS(DT_NODELABEL(loadswitch))
+#error "Overlay for power output node not properly defined."
+#endif
+static gpio_dt_spec loadSwitch = GPIO_DT_SPEC_GET_OR(DT_NODELABEL(loadswitch), gpios, {0});
 
 ZBUS_SUBSCRIBER_DEFINE(app_sub, 8);
 
@@ -147,6 +151,8 @@ int main()
     audioSamplingModule.Initialize();
     audioProcessingModule.Initialize();
     visualizationModule.Initialize();
+
+    led.Set(true);
 
     //Module startup
     audioProcessingModule.Start();
